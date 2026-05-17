@@ -4,18 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e8a19c08-6be0-4547-9498-0e760539b7af" name="Changes" comment="Basically getting all of this set up for the first test of making a PDF.">
-      <change afterPath="$PROJECT_DIR$/map/texture.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/block.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/map/block.py" beforeDir="false" afterPath="$PROJECT_DIR$/map/block.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/map/hallway.py" beforeDir="false" afterPath="$PROJECT_DIR$/map/hallway.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/map/map.py" beforeDir="false" afterPath="$PROJECT_DIR$/map/map.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/map/passage.py" beforeDir="false" afterPath="$PROJECT_DIR$/map/passage.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/map/room.py" beforeDir="false" afterPath="$PROJECT_DIR$/map/room.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/map_generator.py" beforeDir="false" afterPath="$PROJECT_DIR$/mapGen.py" afterDir="false" />
-    </list>
+    <list default="true" id="e8a19c08-6be0-4547-9498-0e760539b7af" name="Changes" comment="Got PDF printing to work, having trouble with the door logic." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -107,11 +96,20 @@
       <option name="project" value="LOCAL" />
       <updated>1779022951057</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Got PDF printing to work, having trouble with the door logic.">
+      <option name="closed" value="true" />
+      <created>1779030477437</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1779030477437</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Basically getting all of this set up for the first test of making a PDF." />
-    <option name="LAST_COMMIT_MESSAGE" value="Basically getting all of this set up for the first test of making a PDF." />
+    <MESSAGE value="Got PDF printing to work, having trouble with the door logic." />
+    <option name="LAST_COMMIT_MESSAGE" value="Got PDF printing to work, having trouble with the door logic." />
   </component>
 </project>
