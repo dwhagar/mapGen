@@ -23,6 +23,7 @@ class MapGenerator:
         self.map = Map()
         self.placement_retries = placement_retries
         self.hallway_count = 0
+        self.coord_table = {}
 
     def generate(self):
         print("Starting map generation...")
@@ -64,8 +65,8 @@ class MapGenerator:
             draw_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
         draw_entry("Door", green, draw_door_legend)
 
-        draw_entry("Door (Secret)", green, lambda c, x, y, s: draw_secret_door_symbol(c, x, y, s))
-        draw_entry("Door (Trapped)", green, lambda c, x, y, s: draw_trapped_door_symbol(c, x, y, s))
+        draw_entry("Door (Secret)", blue, lambda c, x, y, s: draw_secret_door_symbol(c, x + s/2, y + s/2, s, 'horizontal'))
+        draw_entry("Door (Trapped)", red, lambda c, x, y, s: draw_trapped_door_symbol(c, x + s/2, y + s/2, s, 'horizontal'))
 
     def _draw_triangle(self, c, x, y, s):
         p = c.beginPath()
@@ -73,6 +74,24 @@ class MapGenerator:
         p.lineTo(x + s*0.2, y + s*0.2)
         p.lineTo(x + s*0.8, y + s*0.2)
         c.drawPath(p, fill=1, stroke=0)
+
+    def _build_coordinate_translation_table(self, pagesize, margin, block_size_pts):
+        width, height = pagesize
+        map_width_pts = (self.map.MAX_X + 1) * block_size_pts
+        map_height_pts = (self.map.MAX_Y + 1) * block_size_pts
+        x_offset = margin
+        y_offset = height - margin - map_height_pts
+
+        for y_grid in range(self.map.MAX_Y + 1):
+            for x_grid in range(self.map.MAX_X + 1):
+                bl_x = x_offset + x_grid * block_size_pts
+                bl_y = y_offset + (self.map.MAX_Y - y_grid) * block_size_pts
+                self.coord_table[(x_grid, y_grid)] = {
+                    'bl': (bl_x, bl_y),
+                    'br': (bl_x + block_size_pts, bl_y),
+                    'tl': (bl_x, bl_y + block_size_pts),
+                    'tr': (bl_x + block_size_pts, bl_y + block_size_pts)
+                }
 
     def save_to_pdf(self, filename):
         print(f"Saving map to {filename}...")
@@ -82,14 +101,10 @@ class MapGenerator:
         block_size_pts = block_size_mm * mm
         margin = 20 * mm
 
-        map_width_pts = (self.map.MAX_X + 1) * block_size_pts
-        map_height_pts = (self.map.MAX_Y + 1) * block_size_pts
-        x_offset = margin
-        y_offset = height - margin - map_height_pts
+        self._build_coordinate_translation_table((width, height), margin, block_size_pts)
 
         for (x, y), block in self.map.blocks.items():
-            draw_x = x_offset + x * block_size_pts
-            draw_y = y_offset + (self.map.MAX_Y - y) * block_size_pts
+            draw_x, draw_y = self.coord_table[(x, y)]['bl']
             
             container = self.map.get_room_by_identifier(block.room_identifier) or self.map.get_hallway_by_identifier(block.room_identifier)
             if container and container.color:
@@ -99,8 +114,7 @@ class MapGenerator:
             c.rect(draw_x, draw_y, block_size_pts, block_size_pts, fill=1, stroke=0)
 
         for (x, y), block in self.map.blocks.items():
-            draw_x = x_offset + x * block_size_pts
-            draw_y = y_offset + (self.map.MAX_Y - y) * block_size_pts
+            draw_x, draw_y = self.coord_table[(x, y)]['bl']
             for content in block.contents:
                 if isinstance(content, Item):
                     c.setFillColor(blue)
@@ -114,45 +128,52 @@ class MapGenerator:
 
         c.setStrokeColor(black)
         c.setLineWidth(0.1)
+        grid_x_start, grid_y_start = self.coord_table[(0,0)]['tl']
+        grid_end_x = self.coord_table[(self.map.MAX_X, 0)]['tr'][0]
+        grid_end_y = self.coord_table[(0, self.map.MAX_Y)]['bl'][1]
         for i in range(self.map.MAX_X + 2):
-            c.line(x_offset + i * block_size_pts, y_offset, x_offset + i * block_size_pts, y_offset + map_height_pts)
+            c.line(grid_x_start + i * block_size_pts, grid_y_start, grid_x_start + i * block_size_pts, grid_end_y)
         for i in range(self.map.MAX_Y + 2):
-            c.line(x_offset, y_offset + i * block_size_pts, x_offset + map_width_pts, y_offset + i * block_size_pts)
+            c.line(grid_x_start, grid_y_start - i * block_size_pts, grid_end_x, grid_y_start - i * block_size_pts)
 
         c.setStrokeColor(black)
         c.setLineWidth(3)
         c.setLineCap(1)
         for block in self.map.blocks.values():
-            x, y = block.location
-            draw_x = x_offset + x * block_size_pts
-            draw_y = y_offset + (self.map.MAX_Y - y) * block_size_pts
+            corners = self.coord_table[block.location]
             
-            if isinstance(block.north, Wall): c.line(draw_x, draw_y + block_size_pts, draw_x + block_size_pts, draw_y + block_size_pts)
-            if isinstance(block.south, Wall): c.line(draw_x, draw_y, draw_x + block_size_pts, draw_y)
-            if isinstance(block.east, Wall): c.line(draw_x + block_size_pts, draw_y, draw_x + block_size_pts, draw_y + block_size_pts)
-            if isinstance(block.west, Wall): c.line(draw_x, draw_y, draw_x, draw_y + block_size_pts)
+            if isinstance(block.north, Wall): c.line(corners['tl'][0], corners['tl'][1], corners['tr'][0], corners['tr'][1])
+            if isinstance(block.south, Wall): c.line(corners['bl'][0], corners['bl'][1], corners['br'][0], corners['br'][1])
+            if isinstance(block.east, Wall): c.line(corners['br'][0], corners['br'][1], corners['tr'][0], corners['tr'][1])
+            if isinstance(block.west, Wall): c.line(corners['bl'][0], corners['bl'][1], corners['tl'][0], corners['tl'][1])
 
         for passage in self.map.passages:
             if not passage.is_door: continue
             
             block1, block2 = passage.side1, passage.side2
+            x1, y1 = block1.location
+            x2, y2 = block2.location
+
+            # Determine orientation dynamically
+            orientation = 'horizontal' if x1 == x2 else 'vertical'
             
-            draw_x = x_offset + ((block1.location[0] + block2.location[0]) / 2) * block_size_pts
-            draw_y = y_offset + (self.map.MAX_Y - ((block1.location[1] + block2.location[1]) / 2)) * block_size_pts
-            
+            # Calculate midpoint
+            draw_x = (self.coord_table[(x1,y1)]['bl'][0] + self.coord_table[(x2,y2)]['br'][0]) / 2
+            draw_y = (self.coord_table[(x1,y1)]['bl'][1] + self.coord_table[(x2,y2)]['tr'][1]) / 2
+
             status = passage.door_status
             if status == DOOR_STATUS_SECRET:
-                draw_secret_door_symbol(c, draw_x, draw_y, block_size_pts)
+                draw_secret_door_symbol(c, draw_x, draw_y, block_size_pts, orientation)
             elif status == DOOR_STATUS_TRAPPED:
-                draw_trapped_door_symbol(c, draw_x, draw_y, block_size_pts)
+                draw_trapped_door_symbol(c, draw_x, draw_y, block_size_pts, orientation)
             elif status in [DOOR_STATUS_CLOSED, DOOR_STATUS_LOCKED]:
-                draw_door_symbol(c, draw_x, draw_y, block_size_pts, passage.orientation)
+                draw_door_symbol(c, draw_x, draw_y, block_size_pts, orientation)
 
         c.setFont("Helvetica", 8)
         for i in range(self.map.MAX_X + 1):
-            c.drawCentredString(x_offset + (i + 0.5) * block_size_pts, y_offset + map_height_pts + 5, str(i))
+            c.drawCentredString(self.coord_table[(i, 0)]['bl'][0] + block_size_pts/2, self.coord_table[(i,0)]['tl'][1] + 5, str(i))
         for i in range(self.map.MAX_Y + 1):
-            c.drawRightString(x_offset - 5, y_offset + (self.map.MAX_Y - i + 0.5) * block_size_pts, str(i))
+            c.drawRightString(self.coord_table[(0, i)]['bl'][0] - 5, self.coord_table[(0,i)]['bl'][1] + block_size_pts/2, str(i))
 
         c.showPage()
         self._draw_legend(c, margin, height - margin, block_size_pts)
@@ -351,7 +372,6 @@ class MapGenerator:
             if wall_candidates1:
                 h_block, r_block, direction = random.choice(wall_candidates1)
                 passage = Passage(side1=h_block, side2=r_block, is_door=True)
-                passage.orientation = 'horizontal' if direction in ['north', 'south'] else 'vertical'
                 setattr(h_block, direction, passage)
                 setattr(r_block, {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction], passage)
                 self.map.add_passage(passage)
@@ -360,7 +380,6 @@ class MapGenerator:
             if wall_candidates2:
                 h_block, r_block, direction = random.choice(wall_candidates2)
                 passage = Passage(side1=h_block, side2=r_block, is_door=True)
-                passage.orientation = 'horizontal' if direction in ['north', 'south'] else 'vertical'
                 setattr(h_block, direction, passage)
                 setattr(r_block, {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction], passage)
                 self.map.add_passage(passage)
