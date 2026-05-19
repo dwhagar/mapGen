@@ -1,12 +1,5 @@
 from .item import Item
 
-# Encounter type constants
-ENCOUNTER_TYPE_MONSTER = 0
-ENCOUNTER_TYPE_ANIMAL = 1
-ENCOUNTER_TYPE_UNDEAD = 2
-ENCOUNTER_TYPE_SWARM = 3
-
-
 class Encounter(Item):
     def __init__(self, encounter_type, room_identifier=None, block_location=None, description=None):
         """

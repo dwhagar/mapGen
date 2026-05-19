@@ -1,43 +1,46 @@
-import random
-import math
-import heapq
 import argparse
 from reportlab.lib import pagesizes
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import black, red, blue, green, white, Color
 from reportlab.lib.units import mm
+import math
+from collections import defaultdict
+from reportlab.platypus import Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
 
-from map.map import Map
-from map.room import Room
-from map.hallway import Hallway
-from map.block import Block
-from map.wall import Wall
-from map.passage import Passage, Door, DOOR_STATUS_SECRET, DOOR_STATUS_TRAPPED, DOOR_STATUS_LOCKED, DOOR_STATUS_CLOSED, DOOR_STATUS_OPEN
+from map.generator import Generator
 from map.item import Item
 from map.object import MapObject
 from map.encounter import Encounter
+from map.wall import Wall
 from map.texture import draw_door_symbol, draw_secret_door_symbol, draw_trapped_door_symbol
+from map.constants import DOOR_STATUS_SECRET, DOOR_STATUS_TRAPPED, DOOR_STATUS_LOCKED, DOOR_STATUS_CLOSED
+from map.utils import get_center_of_blocks
 
-class MapGenerator:
-    def __init__(self, placement_retries=10):
-        self.map = Map()
-        self.placement_retries = placement_retries
-        self.hallway_count = 0
+def _get_wall_direction_string(wall_segment, room_center):
+    wall_center_x = sum(loc[0] for loc in wall_segment) / len(wall_segment)
+    wall_center_y = sum(loc[1] for loc in wall_segment) / len(wall_segment)
+    
+    dx = wall_center_x - room_center[0]
+    dy = wall_center_y - room_center[1]
+
+    if abs(dx) < 2 and abs(dy) < 2:
+        return "central"
+
+    if dy > abs(dx):
+        return "northern"
+    elif dy < -abs(dx):
+        return "southern"
+    elif dx > abs(dy):
+        return "eastern"
+    else:
+        return "western"
+
+class PdfGenerator:
+    def __init__(self, map_instance, include_index=True):
+        self.map = map_instance
         self.coord_table = {}
-
-    def generate(self):
-        print("Starting map generation...")
-        num_rooms = random.randint(self.map.MIN_ROOMS, self.map.MAX_ROOMS)
-        print(f"Attempting to generate {num_rooms} rooms.")
-
-        self._scatter_rooms(num_rooms)
-        self._connect_rooms_with_hallways()
-        self._finalize_map()
-        self._punch_doors()
-        self._decorate_map()
-        
-        print(f"Map generation complete with {len(self.map.rooms)} rooms.")
-        return self.map
+        self.include_index = include_index
 
     def _draw_legend(self, c, start_x, start_y, block_size):
         c.setFont("Helvetica-Bold", 14)
@@ -65,8 +68,19 @@ class MapGenerator:
             draw_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
         draw_entry("Door", green, draw_door_legend)
 
-        draw_entry("Door (Secret)", blue, lambda c, x, y, s: draw_secret_door_symbol(c, x + s/2, y + s/2, s, 'horizontal'))
-        draw_entry("Door (Trapped)", red, lambda c, x, y, s: draw_trapped_door_symbol(c, x + s/2, y + s/2, s, 'horizontal'))
+        def draw_secret_door_legend(c, x, y, s):
+            c.setFillColor(black)
+            c.rect(x, y + s*0.4, s, s*0.2, fill=1)
+            draw_secret_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
+        draw_entry("Door (Secret)", blue, draw_secret_door_legend)
+
+        def draw_trapped_door_legend(c, x, y, s):
+            c.setFillColor(black)
+            c.rect(x, y + s*0.4, s, s*0.2, fill=1)
+            draw_trapped_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
+        draw_entry("Door (Trapped)", red, draw_trapped_door_legend)
+        
+        return y_pos
 
     def _draw_triangle(self, c, x, y, s):
         p = c.beginPath()
@@ -93,6 +107,69 @@ class MapGenerator:
                     'tr': (bl_x + block_size_pts, bl_y + block_size_pts)
                 }
 
+    def _draw_index(self, c, start_x, start_y, page_height, margin):
+        styles = getSampleStyleSheet()
+        style_body = styles['BodyText']
+        style_heading = styles['h2']
+        
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(start_x, start_y, "Map Index")
+        
+        y_pos = start_y - 30
+        
+        all_locations = self.map.rooms + self.map.hallways
+        sorted_locations = sorted(all_locations, key=lambda x: int(''.join(filter(str.isdigit, x.identifier))))
+
+        for loc in sorted_locations:
+            wall_decos_by_direction = defaultdict(list)
+            for deco in self.map.wall_decorations:
+                if deco.get_room_identifier(self.map) == loc.identifier:
+                    room_center = get_center_of_blocks(loc.blocks)
+                    direction_str = _get_wall_direction_string(deco.locations, room_center)
+                    wall_decos_by_direction[direction_str].append(deco.description)
+
+            if not loc.contents and not wall_decos_by_direction:
+                continue
+            
+            p = Paragraph(f"{loc.identifier}:", style_heading)
+            p_w, p_h = p.wrapOn(c, 500, 50)
+            if y_pos - p_h < margin:
+                c.showPage()
+                y_pos = page_height - margin
+            p.drawOn(c, start_x, y_pos - p_h)
+            y_pos -= p_h
+
+            for content in loc.contents:
+                p = Paragraph(f"  - {content.description}", style_body)
+                p_w, p_h = p.wrapOn(c, 480, 50)
+                if y_pos - p_h < margin:
+                    c.showPage()
+                    y_pos = page_height - margin
+                p.drawOn(c, start_x + 20, y_pos - p_h)
+                y_pos -= p_h
+
+            for direction, descriptions in wall_decos_by_direction.items():
+                desc_str = " and ".join(descriptions)
+                p = Paragraph(f"  - On the {direction} wall, you see {desc_str}.", style_body)
+                p_w, p_h = p.wrapOn(c, 480, 50)
+                if y_pos - p_h < margin:
+                    c.showPage()
+                    y_pos = page_height - margin
+                p.drawOn(c, start_x + 20, y_pos - p_h)
+                y_pos -= p_h
+            
+            y_pos -= 10
+
+    def _find_closest_block(self, center, blocks):
+        closest_block = None
+        min_dist = float('inf')
+        for block in blocks:
+            dist = math.sqrt((center[0] - block.location[0])**2 + (center[1] - block.location[1])**2)
+            if dist < min_dist:
+                min_dist = dist
+                closest_block = block
+        return closest_block
+
     def save_to_pdf(self, filename):
         print(f"Saving map to {filename}...")
         c = canvas.Canvas(filename, pagesize=pagesizes.A4)
@@ -106,7 +183,7 @@ class MapGenerator:
         for (x, y), block in self.map.blocks.items():
             draw_x, draw_y = self.coord_table[(x, y)]['bl']
             
-            container = self.map.get_room_by_identifier(block.room_identifier) or self.map.get_hallway_by_identifier(block.room_identifier)
+            container = self.map.get_area_by_identifier(block.room_identifier)
             if container and container.color:
                 c.setFillColor(container.color)
             else:
@@ -116,15 +193,15 @@ class MapGenerator:
         for (x, y), block in self.map.blocks.items():
             draw_x, draw_y = self.coord_table[(x, y)]['bl']
             for content in block.contents:
-                if isinstance(content, Item):
-                    c.setFillColor(blue)
-                    c.circle(draw_x + block_size_pts / 2, draw_y + block_size_pts / 2, block_size_pts / 4, fill=1, stroke=0)
-                elif isinstance(content, MapObject):
+                if isinstance(content, MapObject):
                     c.setFillColor(red)
                     c.rect(draw_x + block_size_pts / 4, draw_y + block_size_pts / 4, block_size_pts / 2, block_size_pts / 2, fill=1, stroke=0)
                 elif isinstance(content, Encounter):
                     c.setFillColor(green)
                     self._draw_triangle(c, draw_x, draw_y, block_size_pts)
+                elif isinstance(content, Item):
+                    c.setFillColor(blue)
+                    c.circle(draw_x + block_size_pts / 2, draw_y + block_size_pts / 2, block_size_pts / 4, fill=1, stroke=0)
 
         c.setStrokeColor(black)
         c.setLineWidth(0.1)
@@ -154,10 +231,8 @@ class MapGenerator:
             x1, y1 = block1.location
             x2, y2 = block2.location
 
-            # Determine orientation dynamically
             orientation = 'horizontal' if x1 == x2 else 'vertical'
             
-            # Calculate midpoint
             draw_x = (self.coord_table[(x1,y1)]['bl'][0] + self.coord_table[(x2,y2)]['br'][0]) / 2
             draw_y = (self.coord_table[(x1,y1)]['bl'][1] + self.coord_table[(x2,y2)]['tr'][1]) / 2
 
@@ -175,8 +250,21 @@ class MapGenerator:
         for i in range(self.map.MAX_Y + 1):
             c.drawRightString(self.coord_table[(0, i)]['bl'][0] - 5, self.coord_table[(0,i)]['bl'][1] + block_size_pts/2, str(i))
 
+        c.setFillColor(black)
+        c.setFont("Helvetica-Bold", 8)
+        all_areas = self.map.rooms + self.map.hallways
+        for area in all_areas:
+            center_point = get_center_of_blocks(area.blocks)
+            closest_block = self._find_closest_block(center_point, area.blocks)
+            draw_x = self.coord_table[closest_block.location]['bl'][0] + block_size_pts / 2
+            draw_y = self.coord_table[closest_block.location]['bl'][1] + block_size_pts / 2
+            c.drawCentredString(draw_x, draw_y, area.identifier.replace("Area ", ""))
+
         c.showPage()
-        self._draw_legend(c, margin, height - margin, block_size_pts)
+        legend_end_y = self._draw_legend(c, margin, height - margin, block_size_pts)
+        
+        if self.include_index:
+            self._draw_index(c, margin, legend_end_y - 20, height, margin)
         
         c.showPage()
         c.setFont("Helvetica", 10)
@@ -190,215 +278,57 @@ class MapGenerator:
         c.save()
         print("PDF saved successfully.")
 
-    def _find_grid_layout(self, num_items):
-        cols = int(math.ceil(math.sqrt(num_items)))
-        rows = int(math.ceil(num_items / cols))
-        return rows, cols
+class MarkdownGenerator:
+    def __init__(self, map_instance):
+        self.map = map_instance
 
-    def _is_area_free(self, x, y, width, height):
-        for i in range(y, y + height):
-            for j in range(x, x + width):
-                if not (0 <= j <= self.map.MAX_X and 0 <= i <= self.map.MAX_Y):
-                    return False
-                if self.map.get_block_at(j, i) is not None:
-                    return False
-        return True
-
-    def _scatter_rooms(self, num_rooms):
-        print("Scattering rooms...")
-        
-        for i in range(num_rooms):
-            room_identifier = f"R{i+1}"
+    def save_to_markdown(self, filename):
+        print(f"Saving map descriptions to {filename}...")
+        with open(filename, 'w') as f:
+            f.write("# Map Index\n\n")
             
-            placed = False
-            for _ in range(self.placement_retries):
-                room_width = random.randint(3, 8)
-                room_height = random.randint(3, 8)
-                
-                room_min_x = random.randint(0, self.map.MAX_X - room_width)
-                room_min_y = random.randint(0, self.map.MAX_Y - room_height)
+            all_locations = self.map.rooms + self.map.hallways
+            sorted_locations = sorted(all_locations, key=lambda x: int(''.join(filter(str.isdigit, x.identifier))))
 
-                if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
-                    color_val = random.uniform(0.6, 0.9)
-                    new_room = Room(identifier=room_identifier, color=Color(color_val, color_val, color_val))
-                    
-                    blocks = []
-                    for y in range(room_min_y, room_min_y + room_height):
-                        for x in range(room_min_x, room_min_x + room_width):
-                            block = Block(location=(x, y), room_identifier=room_identifier)
-                            blocks.append(block)
-                    
-                    new_room.blocks = blocks
-                    self.map.add_room(new_room)
-                    placed = True
-                    break
-            
-            if not placed:
-                print(f"Warning: Could not place room R{i+1}.")
-        print(f"Successfully scattered {len(self.map.rooms)} rooms.")
+            for loc in sorted_locations:
+                wall_decos_by_direction = defaultdict(list)
+                for deco in self.map.wall_decorations:
+                    if deco.get_room_identifier(self.map) == loc.identifier:
+                        room_center = get_center_of_blocks(loc.blocks)
+                        direction_str = _get_wall_direction_string(deco.locations, room_center)
+                        wall_decos_by_direction[direction_str].append(deco.description)
 
-    def _get_room_center(self, room):
-        if not room.blocks: return None
-        x_coords = [b.location[0] for b in room.blocks]
-        y_coords = [b.location[1] for b in room.blocks]
-        return (sum(x_coords) // len(x_coords), sum(y_coords) // len(y_coords))
-
-    def _create_minimum_spanning_tree(self):
-        if len(self.map.rooms) < 2: return []
-        
-        nodes = self.map.rooms
-        edges = []
-        for i in range(len(nodes)):
-            for j in range(i + 1, len(nodes)):
-                center1 = self._get_room_center(nodes[i])
-                center2 = self._get_room_center(nodes[j])
-                dist = self._heuristic(center1, center2)
-                edges.append((dist, nodes[i], nodes[j]))
-        
-        edges.sort(key=lambda edge: edge[0])
-        
-        parent = {room.identifier: room.identifier for room in nodes}
-        def find_set(room_id):
-            if parent[room_id] == room_id: return room_id
-            parent[room_id] = find_set(parent[room_id])
-            return parent[room_id]
-        def unite_sets(id1, id2):
-            id1 = find_set(id1)
-            id2 = find_set(id2)
-            if id1 != id2: parent[id2] = id1
-
-        mst_connections = []
-        for dist, room1, room2 in edges:
-            if find_set(room1.identifier) != find_set(room2.identifier):
-                unite_sets(room1.identifier, room2.identifier)
-                mst_connections.append((room1, room2))
-        return mst_connections
-
-    def _heuristic(self, a, b):
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-    def _find_path_astar(self, start, end):
-        open_set = [(0, start)]
-        came_from = {}
-        g_score = { (x, y): float('inf') for x in range(self.map.MAX_X + 1) for y in range(self.map.MAX_Y + 1) }
-        g_score[start] = 0
-        f_score = { (x, y): float('inf') for x in range(self.map.MAX_X + 1) for y in range(self.map.MAX_Y + 1) }
-        f_score[start] = self._heuristic(start, end)
-
-        while open_set:
-            _, current = heapq.heappop(open_set)
-
-            if current == end:
-                path = []
-                while current in came_from:
-                    path.append(current)
-                    current = came_from[current]
-                return path[::-1]
-
-            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                neighbor_loc = (current[0] + dx, current[1] + dy)
-                if not (0 <= neighbor_loc[0] <= self.map.MAX_X and 0 <= neighbor_loc[1] <= self.map.MAX_Y):
+                if not loc.contents and not wall_decos_by_direction:
                     continue
+                
+                f.write(f"## {loc.identifier}\n")
+                for content in loc.contents:
+                    f.write(f"- {content.description}\n")
+                
+                for direction, descriptions in wall_decos_by_direction.items():
+                    desc_str = " and ".join(descriptions)
+                    f.write(f"- On the {direction} wall, you see {desc_str}.\n")
+                
+                f.write("\n")
 
-                cost = 1
-                if self.map.get_block_at(neighbor_loc[0], neighbor_loc[1]) and neighbor_loc not in [start, end]:
-                    cost = 100 
-
-                tentative_g_score = g_score[current] + cost
-                if tentative_g_score < g_score.get(neighbor_loc, float('inf')):
-                    came_from[neighbor_loc] = current
-                    g_score[neighbor_loc] = tentative_g_score
-                    f_score[neighbor_loc] = tentative_g_score + self._heuristic(neighbor_loc, end)
-                    heapq.heappush(open_set, (f_score[neighbor_loc], neighbor_loc))
-        return None
-
-    def _create_hallway_between_rooms(self, room1, room2):
-        start_block = random.choice(room1.blocks)
-        end_block = random.choice(room2.blocks)
-        
-        path = self._find_path_astar(start_block.location, end_block.location)
-        
-        if path:
-            self.hallway_count += 1
-            hallway_id = f"H{self.hallway_count}"
-            hallway_blocks = []
-            for loc in path:
-                if self.map.get_block_at(loc[0], loc[1]) is None:
-                    block = Block(location=loc, room_identifier=hallway_id)
-                    hallway_blocks.append(block)
-            
-            if hallway_blocks:
-                color_val = random.uniform(0.4, 0.7)
-                new_hallway = Hallway(identifier=hallway_id, connects_rooms=(room1.identifier, room2.identifier), blocks=hallway_blocks, color=Color(color_val, color_val, color_val))
-                self.map.add_hallway(new_hallway)
-
-    def _connect_rooms_with_hallways(self):
-        print("Connecting rooms with hallways...")
-        if len(self.map.rooms) < 2: return
-
-        connections = self._create_minimum_spanning_tree()
-        print(f"MST determined {len(connections)} connections to be made.")
-
-        for room1, room2 in connections:
-            self._create_hallway_between_rooms(room1, room2)
-
-    def _finalize_map(self):
-        print("Finalizing map by placing walls and passages...")
-        all_blocks = list(self.map.blocks.values())
-        for block in all_blocks:
-            block.check_adjacent(self.map)
-
-    def _punch_doors(self):
-        print("Punching doors...")
-        for hallway in self.map.hallways:
-            room1_id, room2_id = hallway.connects_rooms
-            
-            wall_candidates1 = []
-            for h_block in hallway.blocks:
-                for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
-                    neighbor_loc = (h_block.location[0] + dx, h_block.location[1] + dy)
-                    neighbor = self.map.get_block_at(neighbor_loc[0], neighbor_loc[1])
-                    if neighbor and neighbor.room_identifier == room1_id and isinstance(getattr(h_block, direction), Wall):
-                        wall_candidates1.append((h_block, neighbor, direction))
-            
-            wall_candidates2 = []
-            for h_block in hallway.blocks:
-                for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
-                    neighbor_loc = (h_block.location[0] + dx, h_block.location[1] + dy)
-                    neighbor = self.map.get_block_at(neighbor_loc[0], neighbor_loc[1])
-                    if neighbor and neighbor.room_identifier == room2_id and isinstance(getattr(h_block, direction), Wall):
-                        wall_candidates2.append((h_block, neighbor, direction))
-
-            if wall_candidates1:
-                h_block, r_block, direction = random.choice(wall_candidates1)
-                passage = Passage(side1=h_block, side2=r_block, is_door=True)
-                setattr(h_block, direction, passage)
-                setattr(r_block, {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction], passage)
-                self.map.add_passage(passage)
-                self.map.add_connection(h_block.room_identifier, r_block.room_identifier)
-
-            if wall_candidates2:
-                h_block, r_block, direction = random.choice(wall_candidates2)
-                passage = Passage(side1=h_block, side2=r_block, is_door=True)
-                setattr(h_block, direction, passage)
-                setattr(r_block, {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction], passage)
-                self.map.add_passage(passage)
-                self.map.add_connection(h_block.room_identifier, r_block.room_identifier)
-
-    def _decorate_map(self):
-        print("Decorating map with items, objects, and encounters...")
-        for room in self.map.rooms:
-            room.decorate()
+        print("Markdown file saved successfully.")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Generate a random RPG map.')
-    parser.add_argument('-p', '--print', dest='filename', nargs='?', const='map.pdf', default=None,
+    parser.add_argument('-p', '--print', dest='pdf_filename', nargs='?', const='map.pdf', default=None,
                         help='Output the map to a PDF file. Defaults to map.pdf if no filename is provided.')
+    parser.add_argument('-m', '--markdown', dest='md_filename', nargs='?', const='map.md', default=None,
+                        help='Output the map descriptions to a Markdown file. Defaults to map.md if no filename is provided.')
     
     args = parser.parse_args()
 
-    generator = MapGenerator()
+    generator = Generator()
     generated_map = generator.generate()
     
-    if args.filename:
-        generator.save_to_pdf(args.filename)
+    if args.pdf_filename:
+        pdf_generator = PdfGenerator(generated_map, include_index=args.md_filename is None)
+        pdf_generator.save_to_pdf(args.pdf_filename)
+
+    if args.md_filename:
+        md_generator = MarkdownGenerator(generated_map)
+        md_generator.save_to_markdown(args.md_filename)

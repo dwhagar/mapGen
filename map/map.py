@@ -2,6 +2,7 @@ from .room import Room
 from .block import Block
 from .passage import Passage
 from .hallway import Hallway
+from .wall_decoration import WallDecoration
 
 class Map:
     MIN_ROOMS = 5
@@ -15,6 +16,7 @@ class Map:
         self.hallways = []
         self.blocks = {}
         self.passages = []
+        self.wall_decorations = []
         self.connectivity = {} # To store the graph: {'R1': ['H1'], 'H1': ['R1', 'R2']}
 
     def add_room(self, room: Room):
@@ -31,6 +33,9 @@ class Map:
             if block.location:
                 self.blocks[block.location] = block
 
+    def add_wall_decoration(self, decoration: WallDecoration):
+        self.wall_decorations.append(decoration)
+
     def add_connection(self, id1, id2):
         """Records a connection between two map areas (rooms or hallways)."""
         if id1 not in self.connectivity: self.connectivity[id1] = []
@@ -44,6 +49,12 @@ class Map:
 
     def add_passage(self, passage: Passage):
         self.passages.append(passage)
+
+    def get_area_by_identifier(self, identifier):
+        for area in self.rooms + self.hallways:
+            if area.identifier == identifier:
+                return area
+        return None
 
     def get_room_by_identifier(self, identifier):
         for room in self.rooms:

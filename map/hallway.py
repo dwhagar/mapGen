@@ -1,3 +1,10 @@
+import random
+from .item import Item
+from .encounter import Encounter
+from .constants import HALLWAY_ITEM_CHANCE, HALLWAY_ENCOUNTER_CHANCE, ENCOUNTER_TYPE_SWARM
+from .utils import get_random_item_type, get_random_encounter_type
+from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
+
 class Hallway:
     def __init__(self, identifier, connects_rooms=None, blocks=None, width=1, color=None):
         """
@@ -14,3 +21,54 @@ class Hallway:
         self.blocks = blocks if blocks is not None else []
         self.width = width
         self.color = color
+        self.contents = []
+
+    def rename(self, new_identifier):
+        self.identifier = new_identifier
+        for block in self.blocks:
+            block.room_identifier = new_identifier
+            for content in block.contents:
+                content.room_identifier = new_identifier
+
+    def decorate(self):
+        """
+        Places items and encounters within the hallway based on its size and probabilities.
+        Hallways cannot contain map objects.
+        """
+        num_slots = len(self.blocks) // 9
+        if num_slots == 0:
+            return
+
+        unoccupied_blocks = [b for b in self.blocks if not b.contents]
+        random.shuffle(unoccupied_blocks)
+
+        for _ in range(num_slots):
+            if not unoccupied_blocks:
+                break
+
+            roll = random.random()
+            chosen_block = unoccupied_blocks.pop()
+
+            new_content = None
+            if roll < HALLWAY_ITEM_CHANCE:
+                item_type = get_random_item_type()
+                adj = random.choice(ITEM_ADJECTIVES)
+                noun = ITEM_NOUNS[item_type]
+                desc = random.choice(ITEM_DESCRIPTIONS)
+                description = f"You see {adj} {noun} {desc}."
+                new_content = Item(room_identifier=self.identifier, block_location=chosen_block.location, description=description)
+
+            elif roll < HALLWAY_ITEM_CHANCE + HALLWAY_ENCOUNTER_CHANCE:
+                enc_type = get_random_encounter_type()
+                noun = ENCOUNTER_NOUNS[enc_type]
+                action = random.choice(ENCOUNTER_ACTIONS)
+                if enc_type == ENCOUNTER_TYPE_SWARM:
+                    description = f"A {noun} is {action}."
+                else:
+                    prefix = random.choice(ENCOUNTER_PREFIXES)
+                    description = f"{prefix} {noun} are {action}."
+                new_content = Encounter(encounter_type=enc_type, room_identifier=self.identifier, block_location=chosen_block.location, description=description)
+            
+            if new_content:
+                chosen_block.contents.append(new_content)
+                self.contents.append(new_content)

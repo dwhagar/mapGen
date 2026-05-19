@@ -1,25 +1,5 @@
 from .item import Item
 
-# Object type constants
-OBJECT_TYPE_TRAP = 0
-OBJECT_TYPE_STATUE = 1
-OBJECT_TYPE_FOUNTAIN = 2
-OBJECT_TYPE_STAIRS_UP = 3
-OBJECT_TYPE_STAIRS_DOWN = 4
-OBJECT_TYPE_RUBBLE = 5
-OBJECT_TYPE_PILLAR = 6
-OBJECT_TYPE_ALTAR = 7
-OBJECT_TYPE_THRONE = 8
-OBJECT_TYPE_CHEST = 9
-OBJECT_TYPE_LEVER = 10
-OBJECT_TYPE_BUTTON = 11
-OBJECT_TYPE_CHAIR = 12
-OBJECT_TYPE_DEAD_BODY = 13
-OBJECT_TYPE_TABLE = 14
-OBJECT_TYPE_BED = 15
-OBJECT_TYPE_POOL = 16
-
-
 class MapObject(Item):
     def __init__(self, object_type, room_identifier=None, block_locations=None, description=None):
         """

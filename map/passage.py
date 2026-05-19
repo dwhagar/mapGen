@@ -1,11 +1,6 @@
 import random
-
-# Door status constants
-DOOR_STATUS_SECRET = 0
-DOOR_STATUS_TRAPPED = 1
-DOOR_STATUS_LOCKED = 2
-DOOR_STATUS_CLOSED = 3
-DOOR_STATUS_OPEN = 4
+from .constants import (DOOR_STATUS_SECRET, DOOR_STATUS_TRAPPED, DOOR_STATUS_LOCKED, DOOR_STATUS_CLOSED, DOOR_STATUS_OPEN,
+                        DOOR_PROB_SECRET, DOOR_PROB_TRAPPED, DOOR_PROB_OPEN, DOOR_PROB_LOCKED)
 
 class Door:
     def __init__(self):
@@ -15,17 +10,17 @@ class Door:
         """
         door_type_roll = random.random()
         
-        if door_type_roll < 0.1:  # 10% chance of a secret door
+        if door_type_roll < DOOR_PROB_SECRET:
             self.status = DOOR_STATUS_SECRET
-        elif door_type_roll < 0.2:  # 10% chance of a trapped door
+        elif door_type_roll < DOOR_PROB_SECRET + DOOR_PROB_TRAPPED:
             self.status = DOOR_STATUS_TRAPPED
-        else:  # 80% chance of a regular door
+        else:
             state_roll = random.random()
-            if state_roll < 0.2:  # 20% chance of being open
+            if state_roll < DOOR_PROB_OPEN:
                 self.status = DOOR_STATUS_OPEN
-            else:  # 80% chance of being closed
+            else:
                 self.status = DOOR_STATUS_CLOSED
-                if random.random() < 0.25:  # 25% of closed doors are locked
+                if random.random() < DOOR_PROB_LOCKED:
                     self.status = DOOR_STATUS_LOCKED
 
 class Passage:
