@@ -1,4 +1,5 @@
 import random
+import uuid
 from .constants import (DOOR_STATUS_SECRET, DOOR_STATUS_TRAPPED, DOOR_STATUS_LOCKED, DOOR_STATUS_CLOSED, DOOR_STATUS_OPEN,
                         DOOR_PROB_SECRET, DOOR_PROB_TRAPPED, DOOR_PROB_OPEN, DOOR_PROB_LOCKED)
 
@@ -25,6 +26,7 @@ class Door:
 
 class Passage:
     def __init__(self, side1=None, side2=None, is_door=False):
+        self.unique_id = uuid.uuid4()
         self.side1 = side1
         self.side2 = side2
         self.is_door = is_door

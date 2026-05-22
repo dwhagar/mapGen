@@ -1,16 +1,21 @@
+import uuid
 from .passage import Passage
 from .wall import Wall
 
 class Block:
-    def __init__(self, north=None, east=None, south=None, west=None, contents=None, floor=None, room_identifier=None, location=None):
-        self.north = north
-        self.east = east
-        self.south = south
-        self.west = west
+    def __init__(self, area_uid=None, location=None, contents=None, floor=None):
+        self.unique_id = uuid.uuid4()
+        self.area_uid = area_uid
+        self.location = location
         self.contents = contents if contents is not None else []
         self.floor = floor
-        self.room_identifier = room_identifier
-        self.location = location
+        self.north = None
+        self.east = None
+        self.south = None
+        self.west = None
+
+    def get_area(self, map_instance):
+        return map_instance.get_area_by_uid(self.area_uid)
 
     def check_adjacent(self, map_instance):
         """
@@ -30,7 +35,7 @@ class Block:
                 neighbor = map_instance.get_block_at(nx, ny)
                 
                 if neighbor:
-                    if self.room_identifier != neighbor.room_identifier:
+                    if self.area_uid != neighbor.area_uid:
                         # Boundary between different areas - always a wall for now.
                         wall = Wall()
                         setattr(self, direction, wall)

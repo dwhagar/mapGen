@@ -1,24 +1,24 @@
 import random
+import uuid
 from .item import Item
 from .object import MapObject
 from .encounter import Encounter
-from .constants import (ROOM_ITEM_CHANCE, ROOM_ENCOUNTER_CHANCE, ROOM_OBJECT_CHANCE, ENCOUNTER_TYPE_SWARM)
+from .stairs import Stairs
+from .passage import Passage
+from .constants import (ROOM_ITEM_CHANCE, ROOM_ENCOUNTER_CHANCE, ROOM_OBJECT_CHANCE, ENCOUNTER_TYPE_SWARM, OBJECT_TYPE_STAIRS_UP, OBJECT_TYPE_STAIRS_DOWN)
 from .utils import get_random_item_type, get_random_encounter_type, get_random_object_type, get_center_of_blocks
 from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, OBJECT_ADJECTIVES, OBJECT_NOUNS, OBJECT_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
 
 class Room:
     def __init__(self, identifier, blocks=None, color=None):
         self.identifier = identifier
+        self.unique_id = uuid.uuid4()
         self.blocks = blocks if blocks is not None else []
         self.color = color
         self.contents = []
 
     def rename(self, new_identifier):
         self.identifier = new_identifier
-        for block in self.blocks:
-            block.room_identifier = new_identifier
-            for content in block.contents:
-                content.room_identifier = new_identifier
 
     def get_relative_position(self, obj_location, center):
         """
@@ -39,10 +39,38 @@ class Room:
         else: # dx < -abs(dy)
             return "in the western part of the room"
 
-    def decorate(self):
+    def count_passages(self):
+        passage_uids = set()
+        for block in self.blocks:
+            for direction in ['north', 'south', 'east', 'west']:
+                passage = getattr(block, direction)
+                if isinstance(passage, Passage) and passage.is_door:
+                    passage_uids.add(passage.unique_id)
+        return len(passage_uids)
+
+    def decorate(self, map_instance, forced_object=None):
         """
         Places items, objects, and encounters within the room based on its size and probabilities.
         """
+        if forced_object:
+            obj_type, (x, y) = forced_object
+            chosen_block = next((b for b in self.blocks if b.location == (x, y)), None)
+            if chosen_block:
+                position = self.get_relative_position(chosen_block.location, get_center_of_blocks(self.blocks))
+                if obj_type == OBJECT_TYPE_STAIRS_UP or obj_type == OBJECT_TYPE_STAIRS_DOWN:
+                    direction = "up" if obj_type == OBJECT_TYPE_STAIRS_UP else "down"
+                    new_content = Stairs(block_uid=chosen_block.unique_id, direction=direction, position=position)
+                else:
+                    adj = random.choice(OBJECT_ADJECTIVES)
+                    noun = OBJECT_NOUNS[obj_type]
+                    description = f"There is {adj} {noun} {position}."
+                    new_content = MapObject(object_type=obj_type, block_uids=[chosen_block.unique_id], description=description)
+                
+                if new_content:
+                    chosen_block.contents.append(new_content)
+                    self.contents.append(new_content)
+            return
+
         num_slots = len(self.blocks) // 9
         if num_slots == 0:
             return
@@ -66,7 +94,7 @@ class Room:
                 noun = ITEM_NOUNS[item_type]
                 desc = random.choice(ITEM_DESCRIPTIONS)
                 description = f"You see {adj} {noun} {desc}."
-                new_content = Item(room_identifier=self.identifier, block_location=chosen_block.location, description=description)
+                new_content = Item(block_uid=chosen_block.unique_id, description=description)
                 
             elif roll < ROOM_ITEM_CHANCE + ROOM_ENCOUNTER_CHANCE:
                 enc_type = get_random_encounter_type()
@@ -77,15 +105,20 @@ class Room:
                 else:
                     prefix = random.choice(ENCOUNTER_PREFIXES)
                     description = f"{prefix} {noun} are {action}."
-                new_content = Encounter(encounter_type=enc_type, room_identifier=self.identifier, block_location=chosen_block.location, description=description)
+                new_content = Encounter(encounter_type=enc_type, block_uid=chosen_block.unique_id, description=description)
 
             elif roll < ROOM_ITEM_CHANCE + ROOM_ENCOUNTER_CHANCE + ROOM_OBJECT_CHANCE:
                 obj_type = get_random_object_type()
-                adj = random.choice(OBJECT_ADJECTIVES)
-                noun = OBJECT_NOUNS[obj_type]
                 position = self.get_relative_position(chosen_block.location, room_center)
-                description = f"There is {adj} {noun} {position}."
-                new_content = MapObject(object_type=obj_type, room_identifier=self.identifier, block_locations=[chosen_block.location], description=description)
+                
+                if obj_type == OBJECT_TYPE_STAIRS_UP or obj_type == OBJECT_TYPE_STAIRS_DOWN:
+                    direction = "up" if obj_type == OBJECT_TYPE_STAIRS_UP else "down"
+                    new_content = Stairs(block_uid=chosen_block.unique_id, direction=direction, position=position)
+                else:
+                    adj = random.choice(OBJECT_ADJECTIVES)
+                    noun = OBJECT_NOUNS[obj_type]
+                    description = f"There is {adj} {noun} {position}."
+                    new_content = MapObject(object_type=obj_type, block_uids=[chosen_block.unique_id], description=description)
 
             if new_content:
                 chosen_block.contents.append(new_content)

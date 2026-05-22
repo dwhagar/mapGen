@@ -53,6 +53,8 @@ OBJECT_NOUNS = {
     OBJECT_TYPE_TRAP: "trap",
     OBJECT_TYPE_STATUE: "statue",
     OBJECT_TYPE_FOUNTAIN: "fountain",
+    "stairs_up": "staircase going up",
+    "stairs_down": "staircase going down",
     OBJECT_TYPE_STAIRS_UP: "staircase going up",
     OBJECT_TYPE_STAIRS_DOWN: "staircase going down",
     OBJECT_TYPE_RUBBLE: "pile of rubble",
