@@ -10,7 +10,17 @@ from .utils import get_random_item_type, get_random_encounter_type, get_random_o
 from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, OBJECT_ADJECTIVES, OBJECT_NOUNS, OBJECT_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
 
 class Room:
+    """
+    Represents a room on the map.
+    """
     def __init__(self, identifier, blocks=None, color=None):
+        """
+        Initializes a Room.
+
+        :param identifier: A unique string identifier (e.g., "R1").
+        :param blocks: A list of Block objects that make up the room.
+        :param color: The color to use when drawing this room.
+        """
         self.identifier = identifier
         self.unique_id = uuid.uuid4()
         self.blocks = blocks if blocks is not None else []
@@ -18,14 +28,19 @@ class Room:
         self.contents = []
 
     def rename(self, new_identifier):
+        """
+        Renames the room.
+
+        :param new_identifier: The new identifier for the room.
+        """
         self.identifier = new_identifier
 
     def get_relative_position(self, obj_location, center):
         """
         Determines the relative position of an object compared to the center of the room.
         """
-        dx = obj_location[0] - center[0]
-        dy = obj_location[1] - center[1]
+        dx = obj_location.x - center[0]
+        dy = obj_location.y - center[1]
 
         if abs(dx) < 2 and abs(dy) < 2:
             return "in the center of the room"
@@ -39,14 +54,18 @@ class Room:
         else: # dx < -abs(dy)
             return "in the western part of the room"
 
-    def count_passages(self):
-        passage_uids = set()
-        for block in self.blocks:
-            for direction in ['north', 'south', 'east', 'west']:
-                passage = getattr(block, direction)
-                if isinstance(passage, Passage) and passage.is_door:
-                    passage_uids.add(passage.unique_id)
-        return len(passage_uids)
+    def count_passages(self, map_instance):
+        """
+        Counts the number of passages connected to this room.
+
+        :param map_instance: The map instance.
+        :return: The number of passages connected to this room.
+        """
+        passage_count = 0
+        for passage in map_instance.passages:
+            if passage.side1.area_uid == self.unique_id or passage.side2.area_uid == self.unique_id:
+                passage_count += 1
+        return passage_count
 
     def decorate(self, map_instance, forced_object=None):
         """
@@ -54,7 +73,7 @@ class Room:
         """
         if forced_object:
             obj_type, (x, y) = forced_object
-            chosen_block = next((b for b in self.blocks if b.location == (x, y)), None)
+            chosen_block = next((b for b in self.blocks if b.location.x == x and b.location.y == y), None)
             if chosen_block:
                 position = self.get_relative_position(chosen_block.location, get_center_of_blocks(self.blocks))
                 if obj_type == OBJECT_TYPE_STAIRS_UP or obj_type == OBJECT_TYPE_STAIRS_DOWN:

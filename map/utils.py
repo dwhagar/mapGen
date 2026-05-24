@@ -2,6 +2,9 @@ import random
 from .constants import *
 
 def get_random_object_type():
+    """
+    Returns a random object type based on the probabilities in constants.py.
+    """
     roll = random.random()
     if roll < OBJECT_PROB_TRAP:
         return OBJECT_TYPE_TRAP
@@ -54,6 +57,9 @@ def get_random_object_type():
     return OBJECT_TYPE_POOL
 
 def get_random_item_type():
+    """
+    Returns a random item type based on the probabilities in constants.py.
+    """
     roll = random.random()
     if roll < ITEM_PROB_POTION:
         return ITEM_TYPE_POTION
@@ -70,6 +76,9 @@ def get_random_item_type():
     return ITEM_TYPE_GOLD
 
 def get_random_encounter_type():
+    """
+    Returns a random encounter type based on the probabilities in constants.py.
+    """
     roll = random.random()
     if roll < ENCOUNTER_PROB_MONSTER:
         return ENCOUNTER_TYPE_MONSTER
@@ -83,7 +92,13 @@ def get_random_encounter_type():
     return ENCOUNTER_TYPE_SWARM
 
 def get_center_of_blocks(blocks):
+    """
+    Calculates the center of a list of blocks.
+
+    :param blocks: A list of Block objects.
+    :return: A tuple representing the center coordinates, or None if the list is empty.
+    """
     if not blocks: return None
-    x_coords = [b.location[0] for b in blocks]
-    y_coords = [b.location[1] for b in blocks]
+    x_coords = [b.location.x for b in blocks]
+    y_coords = [b.location.y for b in blocks]
     return (sum(x_coords) // len(x_coords), sum(y_coords) // len(y_coords))

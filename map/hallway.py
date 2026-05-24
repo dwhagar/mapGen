@@ -8,6 +8,9 @@ from .utils import get_random_item_type, get_random_encounter_type
 from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
 
 class Hallway:
+    """
+    Represents a hallway on the map.
+    """
     def __init__(self, identifier, connects_rooms=None, blocks=None, width=1, color=None):
         """
         Initializes a Hallway, which is a collection of blocks connecting two rooms.
@@ -27,16 +30,25 @@ class Hallway:
         self.contents = []
 
     def rename(self, new_identifier):
+        """
+        Renames the hallway.
+
+        :param new_identifier: The new identifier for the hallway.
+        """
         self.identifier = new_identifier
 
-    def count_passages(self):
-        passage_uids = set()
-        for block in self.blocks:
-            for direction in ['north', 'south', 'east', 'west']:
-                passage = getattr(block, direction)
-                if isinstance(passage, Passage) and passage.is_door:
-                    passage_uids.add(passage.unique_id)
-        return len(passage_uids)
+    def count_passages(self, map_instance):
+        """
+        Counts the number of passages connected to this hallway.
+
+        :param map_instance: The map instance.
+        :return: The number of passages connected to this hallway.
+        """
+        passage_count = 0
+        for passage in map_instance.passages:
+            if passage.side1.area_uid == self.unique_id or passage.side2.area_uid == self.unique_id:
+                passage_count += 1
+        return passage_count
 
     def decorate(self, map_instance):
         """
