@@ -36,36 +36,25 @@ class Generator:
         Generates the map.
         """
         print("Starting map generation...")
-        # 1. Fill the map with empty blocks
         for y in range(1, self.map.height + 1):
             for x in range(1, self.map.width + 1):
                 self.map.blocks[(x, y)] = Block(location=Location(x, y), empty=True)
         
-        # 2. Determine the number, size, etc of all the rooms.
         num_rooms = random.randint(self.map.MIN_ROOMS, self.map.MAX_ROOMS)
         print(f"Attempting to generate {num_rooms} rooms.")
         self._scatter_rooms(num_rooms)
 
-        # 4. Add hallways to connect the rooms together.
         self._connect_rooms_with_hallways()
-
-        # 7. Add passages
         self._punch_passages()
 
-        # 9. Go through each room, make sure each room has at least 1 passage to that space.
         for room in self.map.rooms:
             self._ensure_room_passages(room)
-
-        # 10. Go through each hallway, make sure each room has at least 2 passages to that space.
+        
         for hallway in self.map.hallways:
             self._ensure_hallway_passages(hallway)
-        
-        # 11. Decorate rooms
+
         self._decorate_rooms()
-
-        # 12. Decorate hallways
         self._decorate_hallways()
-
         self._decorate_walls()
         self._renumber_and_validate()
         
@@ -75,12 +64,6 @@ class Generator:
     def _is_area_free(self, x, y, width, height):
         """
         Checks if the given area is free.
-
-        :param x: The x-coordinate of the top-left corner of the area.
-        :param y: The y-coordinate of the top-left corner of the area.
-        :param width: The width of the area.
-        :param height: The height of the area.
-        :return: True if the area is free, False otherwise.
         """
         for i in range(y, y + height):
             for j in range(x, x + width):
@@ -95,9 +78,11 @@ class Generator:
         """
         Helper method to create and place a single room on the map.
         """
+        if room_width * room_height < 4: return False
+
         new_room = Room(identifier=room_identifier, color=Color(color_val, color_val, color_val))
         
-        blocks_to_process_walls = [] # Collect blocks to set walls after all are placed
+        blocks_to_process_walls = []
         for y_offset in range(room_height):
             for x_offset in range(room_width):
                 block = self.map.get_block_at(room_min_x + x_offset, room_min_y + y_offset)
@@ -105,9 +90,8 @@ class Generator:
                 block.empty = False
                 blocks_to_process_walls.append(block)
         
-        new_room.blocks = blocks_to_process_walls # Assign blocks to the room
+        new_room.blocks = blocks_to_process_walls
 
-        # Now that all blocks for the room are placed, set their initial walls
         for block in blocks_to_process_walls:
             block._set_initial_walls(self.map)
             
@@ -117,26 +101,25 @@ class Generator:
     def _scatter_rooms(self, num_rooms):
         """
         Scatters rooms across the map.
-
-        :param num_rooms: The number of rooms to scatter.
         """
         print("Scattering rooms...")
         
         if self.add_object:
             obj_type, x, y = self.add_object
-            room_identifier = f"R{num_rooms + 1}" # Placeholder ID
+            room_identifier = f"R{num_rooms + 1}"
             color_val = random.uniform(0.6, 0.9)
             
             placed = False
             for _ in range(self.placement_retries):
-                room_width = random.randint(3, 8)
-                room_height = random.randint(3, 8)
-                room_min_x = x - random.randint(1, room_width - 2)
-                room_min_y = y - random.randint(1, room_height - 2)
+                room_width = random.randint(2, 5)
+                room_height = random.randint(2, 5)
+                room_min_x = x - random.randint(1, room_width - 1)
+                room_min_y = y - random.randint(1, room_height - 1)
 
                 if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
-                    placed = self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val)
-                    break
+                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val):
+                        placed = True
+                        break
             if not placed:
                 print(f"Warning: Could not place room for object at ({x},{y}).")
             else:
@@ -147,16 +130,17 @@ class Generator:
             
             placed = False
             for _ in range(self.placement_retries):
-                room_width = random.randint(3, 8)
-                room_height = random.randint(3, 8)
+                room_width = random.randint(2, 5)
+                room_height = random.randint(2, 5)
                 
                 room_min_x = random.randint(1, self.map.width - room_width + 1)
                 room_min_y = random.randint(1, self.map.height - room_height + 1)
 
                 if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
                     color_val = random.uniform(0.6, 0.9)
-                    placed = self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val)
-                    break
+                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val):
+                        placed = True
+                        break
             
             if not placed:
                 print(f"Warning: Could not place room R{i+1}.")
@@ -165,7 +149,6 @@ class Generator:
     def _create_minimum_spanning_tree(self):
         """
         Creates a minimum spanning tree of the rooms.
-        :return: A list of connections between rooms.
         """
         if len(self.map.rooms) < 2: return []
         
@@ -200,20 +183,12 @@ class Generator:
     def _heuristic(self, a, b):
         """
         Calculates the Manhattan distance between two points.
-
-        :param a: The first point.
-        :param b: The second point.
-        :return: The Manhattan distance between the two points.
         """
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     def _find_path_astar(self, start, end):
         """
         Finds a path between two points using the A* algorithm.
-
-        :param start: The start point.
-        :param end: The end point.
-        :return: A list of points representing the path, or None if no path is found.
         """
         open_set = [(0, start)]
         came_from = {}
@@ -253,25 +228,21 @@ class Generator:
     def _create_hallway_between_rooms(self, room1, room2):
         """
         Creates a hallway between two rooms.
-
-        :param room1: The first room.
-        :param room2: The second room.
         """
         start_block = random.choice(room1.blocks)
         end_block = random.choice(room2.blocks)
         
         path = self._find_path_astar((start_block.location.x, start_block.location.y), (end_block.location.x, end_block.location.y))
         
-        if path:
+        if path and len(path) >= 4:
             self.hallway_count += 1
             hallway_id = f"H{self.hallway_count}"
             new_hallway = Hallway(identifier=hallway_id, connects_rooms=(room1.unique_id, room2.unique_id))
             
-            blocks_to_process_walls = [] # Collect blocks to set walls after all are placed
+            blocks_to_process_walls = []
             for loc in path:
                 block = self.map.get_block_at(loc[0], loc[1])
                 if block and block.empty:
-                    # 6. Flip all hallway blocks within the hallway to not empty.
                     block.area_uid = new_hallway.unique_id
                     block.empty = False
                     blocks_to_process_walls.append(block)
@@ -282,7 +253,6 @@ class Generator:
                 new_hallway.color = Color(color_val, color_val, color_val)
                 self.map.add_hallway(new_hallway)
 
-                # Now that all blocks for the hallway are placed, set their initial walls
                 for block in blocks_to_process_walls:
                     block._set_initial_walls(self.map)
 
@@ -302,8 +272,30 @@ class Generator:
     def _create_passage_between_blocks(self, block1, block2, direction, is_door):
         """
         Creates a passage between two specific blocks in a given direction.
-        Assumes there is a wall between them.
         """
+        x, y = block1.location.x, block1.location.y
+        adj_passage_type = None
+
+        if direction in ['east', 'west']:
+            for dy in [-1, 1]:
+                adj_block = self.map.get_block_at(x, y + dy)
+                if adj_block:
+                    connection = getattr(adj_block, direction, None)
+                    if isinstance(connection, Passage):
+                        adj_passage_type = connection.is_door
+                        break
+        elif direction in ['north', 'south']:
+            for dx in [-1, 1]:
+                adj_block = self.map.get_block_at(x + dx, y)
+                if adj_block:
+                    connection = getattr(adj_block, direction, None)
+                    if isinstance(connection, Passage):
+                        adj_passage_type = connection.is_door
+                        break
+        
+        if adj_passage_type is not None:
+            is_door = adj_passage_type
+
         passage = Passage(side1=block1, side2=block2, is_door=is_door)
         setattr(block1, direction, passage)
         opposite_direction = {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction]
@@ -313,9 +305,9 @@ class Generator:
 
     def _punch_passages(self):
         """
-        Punches passages between adjacent non-empty blocks.
+        Punches optional, random passages between adjacent areas.
         """
-        print("Punching passages...")
+        print("Punching optional passages...")
         for y in range(1, self.map.height + 1):
             for x in range(1, self.map.width + 1):
                 block = self.map.get_block_at(x, y)
@@ -323,34 +315,40 @@ class Generator:
                     for direction, (dx, dy) in {'north': (0, -1), 'east': (1, 0)}.items():
                         neighbor = self.map.get_block_at(x + dx, y + dy)
                         if neighbor and not neighbor.empty and block.area_uid != neighbor.area_uid:
-                            if random.random() < PASSAGE_CREATION_CHANCE:
-                                is_door = random.random() < PASSAGE_IS_DOOR
-                                self._create_passage_between_blocks(block, neighbor, direction, is_door)
+                            if isinstance(getattr(block, direction), Wall):
+                                if random.random() < PASSAGE_CREATION_CHANCE:
+                                    is_door = random.random() < PASSAGE_IS_DOOR
+                                    self._create_passage_between_blocks(block, neighbor, direction, is_door)
 
     def _create_passage_between_hallway_and_room(self, hallway, room_uid):
         """
-        Creates a passage between a hallway and a room.
-
-        :param hallway: The hallway.
-        :param room_uid: The unique ID of the room.
-        :return: True if a passage was created, False otherwise.
+        Finds the best place for a passage between a hallway and a room and creates it.
         """
+        best_candidate = None
+
         for h_block in hallway.blocks:
             for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
-                neighbor_loc = (h_block.location.x + dx, h_block.location.y + dy)
-                neighbor = self.map.get_block_at(neighbor_loc[0], neighbor_loc[1])
-                if neighbor and neighbor.area_uid == room_uid and isinstance(getattr(h_block, direction), Wall):
-                    self._create_passage_between_blocks(h_block, neighbor, direction, is_door=True)
-                    return True
+                neighbor = self.map.get_block_at(h_block.location.x + dx, h_block.location.y + dy)
+                if neighbor and neighbor.area_uid == room_uid:
+                    connection = getattr(h_block, direction)
+                    if isinstance(connection, Wall):
+                        best_candidate = (h_block, neighbor, direction)
+                        break
+                    elif not best_candidate:
+                        best_candidate = (h_block, neighbor, direction)
+            if best_candidate and isinstance(getattr(best_candidate[0], best_candidate[2]), Wall):
+                break
+
+        if best_candidate:
+            h_block, neighbor, direction = best_candidate
+            self._create_passage_between_blocks(h_block, neighbor, direction, is_door=True)
+            return True
+
         return False
 
     def _create_passage_between_adjacent_rooms(self, room1, room2):
         """
         Creates a passage between two adjacent rooms.
-
-        :param room1: The first room.
-        :param room2: The second room.
-        :return: True if a passage was created, False otherwise.
         """
         for r1_block in room1.blocks:
             for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
@@ -367,33 +365,23 @@ class Generator:
         """
         if room.count_passages(self.map) < 1:
             print(f"Room {room.identifier} has no passages. Adding one.")
-            # Try to connect to a random other room
-            other_rooms = [r for r in self.map.rooms if r != room]
-            if other_rooms:
-                self._create_passage_between_adjacent_rooms(room, random.choice(other_rooms))
+            for r_block in room.blocks:
+                for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
+                    neighbor = self.map.get_block_at(r_block.location.x + dx, r_block.location.y + dy)
+                    if neighbor and not neighbor.empty and neighbor.area_uid != room.unique_id:
+                        neighbor_area = self.map.get_area_by_uid(neighbor.area_uid)
+                        if isinstance(neighbor_area, Room):
+                            if self._create_passage_between_adjacent_rooms(room, neighbor_area):
+                                return
 
     def _ensure_hallway_passages(self, hallway):
         """
-        Ensures a hallway has at least two passages, one to each connected room.
+        Ensures a hallway has passages to its connected rooms.
         """
-        passages_count = hallway.count_passages(self.map)
-        if passages_count == 0:
-            print(f"Hallway {hallway.identifier} has 0 passages. Adding connections.")
-            self._create_passage_between_hallway_and_room(hallway, hallway.connects_rooms[0])
-            self._create_passage_between_hallway_and_room(hallway, hallway.connects_rooms[1])
-        elif passages_count == 1:
-            print(f"Hallway {hallway.identifier} has only 1 passage. Adding another.")
-            room1_connected = any(p for p in self.map.passages if \
-                                  (p.side1.area_uid == hallway.unique_id and p.side2.area_uid == hallway.connects_rooms[0]) or \
-                                  (p.side2.area_uid == hallway.unique_id and p.side1.area_uid == hallway.connects_rooms[0]))
-            room2_connected = any(p for p in self.map.passages if \
-                                  (p.side1.area_uid == hallway.unique_id and p.side2.area_uid == hallway.connects_rooms[1]) or \
-                                  (p.side2.area_uid == hallway.unique_id and p.side1.area_uid == hallway.connects_rooms[1]))
-            
-            if not room1_connected:
-                self._create_passage_between_hallway_and_room(hallway, hallway.connects_rooms[0])
-            elif not room2_connected:
-                self._create_passage_between_hallway_and_room(hallway, hallway.connects_rooms[1])
+        if hallway.count_passages(self.map) < 2:
+            print(f"Hallway {hallway.identifier} is missing passages. Attempting to add them.")
+            for room_uid in hallway.connects_rooms:
+                self._create_passage_between_hallway_and_room(hallway, room_uid)
 
     def _decorate_rooms(self):
         """
@@ -404,7 +392,7 @@ class Generator:
         if self.add_object:
             obj_type, x, y = self.add_object
             area = self.map.get_area_by_location(x, y)
-            if area and isinstance(area, Room): # Ensure it's a room
+            if area and isinstance(area, Room):
                 area.decorate(self.map, forced_object=(obj_type, (x,y)))
                 room_with_forced_object = area
 

@@ -15,6 +15,7 @@ from map.object import MapObject
 from map.encounter import Encounter
 from map.stairs import Stairs
 from map.wall import Wall
+from map.passage import Passage
 from map.texture import draw_door_symbol
 from map.constants import OBJECT_TYPE_TRAP, ENCOUNTER_TYPE_MONSTER, PDF_BLOCK_SIZE_MM, PDF_LEGEND_VERTICAL_SPACING, PDF_LEGEND_HORIZONTAL_SPACING
 from map.utils import get_center_of_blocks, get_relative_direction_from_center
@@ -42,36 +43,52 @@ class PdfGenerator:
         self.coord_table = {}
         self.include_index = include_index
 
-    def _draw_legend(self, c, start_x, start_y, block_size):
+    def _draw_legend(self, c, start_y, block_size, page_width):
         """
-        Draws the legend on the PDF.
+        Draws the legend on the PDF, centered horizontally in two rows.
         """
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(start_x, start_y, "Map Legend")
-        y_pos = start_y - PDF_LEGEND_VERTICAL_SPACING
+        title_y = start_y + PDF_LEGEND_VERTICAL_SPACING
+        c.drawCentredString(page_width / 2, title_y, "Map Legend")
+        y_pos = start_y
         c.setFont("Helvetica", 10)
 
-        def draw_entry(label, color, shape_func):
-            nonlocal y_pos
-            c.setFillColor(color)
-            shape_func(c, start_x, y_pos, block_size)
-            c.setFillColor(black)
-            c.drawString(start_x + block_size + PDF_LEGEND_HORIZONTAL_SPACING, y_pos + (block_size/4), label)
-            y_pos -= PDF_LEGEND_VERTICAL_SPACING
-
-        draw_entry("Floor", Color(0.8, 0.8, 0.8), lambda c, x, y, s: c.rect(x, y, s, s, fill=1))
-        draw_entry("Item", blue, lambda c, x, y, s: c.circle(x + s/2, y + s/2, s/4, fill=1))
-        draw_entry("Map Object", red, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, MapObject(object_type=OBJECT_TYPE_TRAP, block_uids=[(0,0)]).get_icon()))
-        draw_entry("Encounter", green, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Encounter(encounter_type=ENCOUNTER_TYPE_MONSTER).get_icon()))
-        draw_entry("Stairs Up", orange, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Stairs(block_uid=None, direction='up').get_icon()))
-        draw_entry("Stairs Down", orange, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Stairs(block_uid=None, direction='down').get_icon()))
-        draw_entry("Wall", black, lambda c, x, y, s: c.rect(x, y + s*0.4, s, s*0.2, fill=1))
+        entries = [
+            ("Floor", Color(0.8, 0.8, 0.8), lambda c, x, y, s: c.rect(x, y, s, s, fill=1)),
+            ("Item", blue, lambda c, x, y, s: c.circle(x + s/2, y + s/2, s/4, fill=1)),
+            ("Map Object", red, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, MapObject(object_type=OBJECT_TYPE_TRAP, block_uids=[(0,0)]).get_icon())),
+            ("Encounter", green, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Encounter(encounter_type=ENCOUNTER_TYPE_MONSTER).get_icon())),
+            ("Stairs Up", orange, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Stairs(block_uid=None, direction='up').get_icon())),
+            ("Stairs Down", orange, lambda c, x, y, s: c.drawCentredString(x + s/2, y + s/4, Stairs(block_uid=None, direction='down').get_icon())),
+            ("Wall", black, lambda c, x, y, s: c.rect(x, y + s*0.4, s, s*0.2, fill=1)),
+        ]
         
         def draw_door_legend(c, x, y, s):
             c.setFillColor(black)
             c.rect(x, y + s*0.4, s, s*0.2, fill=1)
             draw_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
-        draw_entry("Door", green, draw_door_legend)
+        entries.append(("Door", green, draw_door_legend))
+
+        num_entries = len(entries)
+        entries_per_row = 4
+        num_rows = (num_entries + entries_per_row - 1) // entries_per_row
+        
+        max_label_width = max(c.stringWidth(label, "Helvetica", 10) for label, _, _ in entries)
+        entry_width = block_size + PDF_LEGEND_HORIZONTAL_SPACING + max_label_width + 4 * mm
+
+        for row in range(num_rows):
+            row_entries = entries[row*entries_per_row : (row+1)*entries_per_row]
+            row_width = len(row_entries) * entry_width
+            x_pos = (page_width - row_width) / 2
+            
+            for label, color, shape_func in row_entries:
+                c.setFillColor(color)
+                shape_func(c, x_pos, y_pos, block_size)
+                c.setFillColor(black)
+                c.drawString(x_pos + block_size + PDF_LEGEND_HORIZONTAL_SPACING, y_pos + (block_size/4), label)
+                x_pos += entry_width
+            
+            y_pos -= PDF_LEGEND_VERTICAL_SPACING * 1.5
         
         return y_pos
 
@@ -185,6 +202,7 @@ class PdfGenerator:
 
         self._build_coordinate_translation_table((width, height), margin, block_size_pts)
 
+        # 1. Draw block backgrounds
         for (x, y), block in self.map.blocks.items():
             if block.empty:
                 continue
@@ -197,6 +215,37 @@ class PdfGenerator:
                 c.setFillColor(Color(0.8, 0.8, 0.8))
             c.rect(draw_x, draw_y, block_size_pts, block_size_pts, fill=1, stroke=0)
 
+        # 2. Draw grid lines over the block backgrounds
+        c.setStrokeColor(black)
+        c.setLineWidth(0.1)
+        grid_x_start, grid_y_start = self.coord_table[(1,1)]['tl']
+        grid_end_x = self.coord_table[(self.map.width, 1)]['tr'][0]
+        grid_end_y = self.coord_table[(1, self.map.height)]['bl'][1]
+        for i in range(self.map.width + 1):
+            c.line(grid_x_start + i * block_size_pts, grid_y_start, grid_x_start + i * block_size_pts, grid_end_y)
+        for i in range(self.map.height + 1):
+            c.line(grid_x_start, grid_y_start - i * block_size_pts, grid_end_x, grid_y_start - i * block_size_pts)
+
+        # 3. Draw walls (and walls where doors are)
+        c.setStrokeColor(black)
+        c.setLineWidth(3)
+        c.setLineCap(1)
+        for block in self.map.blocks.values():
+            if block.empty:
+                continue
+            corners = self.coord_table[(block.location.x, block.location.y)]
+            
+            # Draw a wall if the side is a Wall instance OR a Passage that is a door
+            if isinstance(block.north, Wall) or (isinstance(block.north, Passage) and block.north.is_door):
+                c.line(corners['tl'][0], corners['tl'][1], corners['tr'][0], corners['tr'][1])
+            if isinstance(block.south, Wall) or (isinstance(block.south, Passage) and block.south.is_door):
+                c.line(corners['bl'][0], corners['bl'][1], corners['br'][0], corners['br'][1])
+            if isinstance(block.east, Wall) or (isinstance(block.east, Passage) and block.east.is_door):
+                c.line(corners['br'][0], corners['br'][1], corners['tr'][0], corners['tr'][1])
+            if isinstance(block.west, Wall) or (isinstance(block.west, Passage) and block.west.is_door):
+                c.line(corners['bl'][0], corners['bl'][1], corners['tl'][0], corners['tl'][1])
+
+        # 4. Draw contents (items, stairs, etc.)
         for (x, y), block in self.map.blocks.items():
             if block.empty:
                 continue
@@ -215,29 +264,7 @@ class PdfGenerator:
                     c.setFillColor(blue)
                     c.circle(draw_x + block_size_pts / 2, draw_y + block_size_pts / 2, block_size_pts / 4, fill=1, stroke=0)
 
-        c.setStrokeColor(black)
-        c.setLineWidth(0.1)
-        grid_x_start, grid_y_start = self.coord_table[(1,1)]['tl']
-        grid_end_x = self.coord_table[(self.map.width, 1)]['tr'][0]
-        grid_end_y = self.coord_table[(1, self.map.height)]['bl'][1]
-        for i in range(self.map.width + 1):
-            c.line(grid_x_start + i * block_size_pts, grid_y_start, grid_x_start + i * block_size_pts, grid_end_y)
-        for i in range(self.map.height + 1):
-            c.line(grid_x_start, grid_y_start - i * block_size_pts, grid_end_x, grid_y_start - i * block_size_pts)
-
-        c.setStrokeColor(black)
-        c.setLineWidth(3)
-        c.setLineCap(1)
-        for block in self.map.blocks.values():
-            if block.empty:
-                continue
-            corners = self.coord_table[(block.location.x, block.location.y)]
-            
-            if isinstance(block.north, Wall): c.line(corners['tl'][0], corners['tl'][1], corners['tr'][0], corners['tr'][1])
-            if isinstance(block.south, Wall): c.line(corners['bl'][0], corners['bl'][1], corners['br'][0], corners['br'][1])
-            if isinstance(block.east, Wall): c.line(corners['br'][0], corners['br'][1], corners['tr'][0], corners['tr'][1])
-            if isinstance(block.west, Wall): c.line(corners['bl'][0], corners['bl'][1], corners['tl'][0], corners['tl'][1])
-
+        # 5. Draw door symbols
         for passage in self.map.passages:
             if not passage.is_door: continue
             
@@ -252,6 +279,7 @@ class PdfGenerator:
 
             draw_door_symbol(c, draw_x, draw_y, block_size_pts, orientation)
 
+        # 6. Draw coordinates and area identifiers
         c.setFont("Helvetica", 8)
         for i in range(1, self.map.width + 1):
             c.drawCentredString(self.coord_table[(i, 1)]['bl'][0] + block_size_pts/2, self.coord_table[(i,1)]['tl'][1] + 5, str(i))
@@ -268,11 +296,13 @@ class PdfGenerator:
             draw_y = self.coord_table[(closest_block.location.x, closest_block.location.y)]['bl'][1] + block_size_pts / 2
             c.drawCentredString(draw_x, draw_y, area.identifier.replace("Area ", ""))
 
+        legend_y_start = grid_end_y - 20 * mm
+        self._draw_legend(c, legend_y_start, block_size_pts, width)
+
         c.showPage()
-        legend_end_y = self._draw_legend(c, margin, height - margin, block_size_pts)
         
         if self.include_index:
-            self._draw_index(c, margin, legend_end_y - 20, height, margin)
+            self._draw_index(c, margin, height - margin, height, margin)
         
         c.showPage()
         c.setFont("Helvetica", 10)

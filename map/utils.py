@@ -102,3 +102,32 @@ def get_relative_direction_from_center(segment_locations, center):
         return "eastern"
     else:
         return "western"
+
+def compare_passages(passage1, passage2):
+    """
+    Compares two Passage objects to see if they are functionally identical.
+    Excludes unique_id from the comparison.
+
+    :param passage1: The first Passage object.
+    :param passage2: The second Passage object.
+    :return: True if the passages are identical, False otherwise.
+    """
+    if not passage1 and not passage2:
+        return True
+    if not passage1 or not passage2:
+        return False
+
+    if passage1.is_door != passage2.is_door:
+        return False
+
+    if passage1.orientation != passage2.orientation:
+        return False
+
+    if passage1.orientation is None:
+        return True
+
+    # Compare sides. The order of side1 and side2 might be swapped.
+    p1_sides = {(passage1.side1.location, passage1.side1.area_uid), (passage1.side2.location, passage1.side2.area_uid)}
+    p2_sides = {(passage2.side1.location, passage2.side1.area_uid), (passage2.side2.location, passage2.side2.area_uid)}
+
+    return p1_sides == p2_sides
