@@ -16,30 +16,16 @@ from map.encounter import Encounter
 from map.stairs import Stairs
 from map.wall import Wall
 from map.texture import draw_door_symbol
-from map.constants import OBJECT_TYPE_TRAP, ENCOUNTER_TYPE_MONSTER
-from map.utils import get_center_of_blocks
+from map.constants import OBJECT_TYPE_TRAP, ENCOUNTER_TYPE_MONSTER, PDF_BLOCK_SIZE_MM, PDF_LEGEND_VERTICAL_SPACING, PDF_LEGEND_HORIZONTAL_SPACING
+from map.utils import get_center_of_blocks, get_relative_direction_from_center
 
-def _get_wall_direction_string(wall_segment, room_center):
+def _generate_timestamped_filename(base_filename):
     """
-    Determines the direction of a wall segment relative to the center of a room.
+    Generates a timestamped filename.
     """
-    wall_center_x = sum(loc.x for loc in wall_segment) / len(wall_segment)
-    wall_center_y = sum(loc.y for loc in wall_segment) / len(wall_segment)
-    
-    dx = wall_center_x - room_center[0]
-    dy = wall_center_y - room_center[1]
-
-    if abs(dx) < 2 and abs(dy) < 2:
-        return "central"
-
-    if dy > abs(dx):
-        return "northern"
-    elif dy < -abs(dx):
-        return "southern"
-    elif dx > abs(dy):
-        return "eastern"
-    else:
-        return "western"
+    name, ext = base_filename.rsplit('.', 1)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"{name}-{timestamp}.{ext}"
 
 class PdfGenerator:
     """
@@ -62,7 +48,7 @@ class PdfGenerator:
         """
         c.setFont("Helvetica-Bold", 14)
         c.drawString(start_x, start_y, "Map Legend")
-        y_pos = start_y - 30
+        y_pos = start_y - PDF_LEGEND_VERTICAL_SPACING
         c.setFont("Helvetica", 10)
 
         def draw_entry(label, color, shape_func):
@@ -70,8 +56,8 @@ class PdfGenerator:
             c.setFillColor(color)
             shape_func(c, start_x, y_pos, block_size)
             c.setFillColor(black)
-            c.drawString(start_x + block_size + 10, y_pos + (block_size/4), label)
-            y_pos -= 30
+            c.drawString(start_x + block_size + PDF_LEGEND_HORIZONTAL_SPACING, y_pos + (block_size/4), label)
+            y_pos -= PDF_LEGEND_VERTICAL_SPACING
 
         draw_entry("Floor", Color(0.8, 0.8, 0.8), lambda c, x, y, s: c.rect(x, y, s, s, fill=1))
         draw_entry("Item", blue, lambda c, x, y, s: c.circle(x + s/2, y + s/2, s/4, fill=1))
@@ -122,7 +108,7 @@ class PdfGenerator:
         for deco in self.map.wall_decorations:
             if deco.area_uid == loc.unique_id:
                 room_center = get_center_of_blocks(loc.blocks)
-                direction_str = _get_wall_direction_string(deco.locations, room_center)
+                direction_str = get_relative_direction_from_center(deco.locations, room_center)
                 wall_decos_by_direction[direction_str].append(deco.description)
 
         for direction, descriptions in wall_decos_by_direction.items():
@@ -142,15 +128,17 @@ class PdfGenerator:
         c.setFont("Helvetica-Bold", 14)
         c.drawString(start_x, start_y, "Map Index")
         
-        y_pos = start_y - 30
+        y_pos = start_y - PDF_LEGEND_VERTICAL_SPACING
         
         all_locations = self.map.rooms + self.map.hallways
         sorted_locations = sorted(all_locations, key=lambda x: int(''.join(filter(str.isdigit, x.identifier))))
 
         for loc in sorted_locations:
             list_items = self._prepare_list_items(loc, style_body)
+            
+            # If no specific items or wall decorations, add a default description
             if not list_items:
-                continue
+                list_items.append(ListItem(Paragraph("This area appears to be empty.", style_body), leftIndent=35))
 
             p = Paragraph(f"{loc.identifier}:", style_heading)
             p_w, p_h = p.wrapOn(c, 500, 50)
@@ -192,8 +180,7 @@ class PdfGenerator:
         pagesize = getattr(pagesizes, pagesize_str.upper(), pagesizes.A4)
         c = canvas.Canvas(filename, pagesize=pagesize)
         width, height = pagesize
-        block_size_mm = 6.35
-        block_size_pts = block_size_mm * mm
+        block_size_pts = PDF_BLOCK_SIZE_MM * mm
         margin = 20 * mm
 
         self._build_coordinate_translation_table((width, height), margin, block_size_pts)
@@ -327,19 +314,21 @@ class MarkdownGenerator:
                 for deco in self.map.wall_decorations:
                     if deco.area_uid == loc.unique_id:
                         room_center = get_center_of_blocks(loc.blocks)
-                        direction_str = _get_wall_direction_string(deco.locations, room_center)
+                        direction_str = get_relative_direction_from_center(deco.locations, room_center)
                         wall_decos_by_direction[direction_str].append(deco.description)
 
-                if not loc.contents and not wall_decos_by_direction:
-                    continue
-                
                 f.write(f"## {loc.identifier}\n")
-                for content in loc.contents:
-                    f.write(f"- {content.description}\n")
                 
-                for direction, descriptions in wall_decos_by_direction.items():
-                    desc_str = " and ".join(descriptions)
-                    f.write(f"- On the {direction} wall, you see {desc_str}.\n")
+                # If no specific items or wall decorations, add a default description
+                if not loc.contents and not wall_decos_by_direction:
+                    f.write(f"- This area appears to be empty.\n")
+                else:
+                    for content in loc.contents:
+                        f.write(f"- {content.description}\n")
+                    
+                    for direction, descriptions in wall_decos_by_direction.items():
+                        desc_str = " and ".join(descriptions)
+                        f.write(f"- On the {direction} wall, you see {desc_str}.\n")
                 
                 f.write("\n")
 
@@ -357,7 +346,7 @@ if __name__ == '__main__':
                         help='Add an object to the map at a specific location. Format: index,x,y')
     parser.add_argument('-W', '--width', dest='width', type=int, default=25,
                         help='Set the width of the map.')
-    parser.add_argument('-H', '--height', dest='height', type=int, default=25,
+    parser.add_argument('-H', '--height', type=int, default=25,
                         help='Set the height of the map.')
     
     args = parser.parse_args()
@@ -377,8 +366,7 @@ if __name__ == '__main__':
     if args.pdf_filename:
         filename = args.pdf_filename
         if filename == 'map.pdf':
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            filename = f"map-{timestamp}.pdf"
+            filename = _generate_timestamped_filename(filename)
         pdf_generator = PdfGenerator(generated_map, include_index=args.md_filename is None)
         pdf_generator.save_to_pdf(filename, args.pagesize)
 

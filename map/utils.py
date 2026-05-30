@@ -1,95 +1,73 @@
 import random
 from .constants import *
 
+def _get_weighted_random_type(choices):
+    """
+    Returns a random type based on a dictionary of weighted choices.
+    :param choices: A dictionary where keys are types and values are their probabilities.
+    """
+    total_probability = sum(choices.values())
+    if total_probability == 0:
+        return None # Or raise an error, depending on desired behavior
+
+    roll = random.uniform(0, total_probability)
+    cumulative_probability = 0
+    for item_type, probability in choices.items():
+        cumulative_probability += probability
+        if roll < cumulative_probability:
+            return item_type
+    
+    # Fallback in case of floating point inaccuracies, return the last item
+    return list(choices.keys())[-1]
+
 def get_random_object_type():
     """
     Returns a random object type based on the probabilities in constants.py.
     """
-    roll = random.random()
-    if roll < OBJECT_PROB_TRAP:
-        return OBJECT_TYPE_TRAP
-    roll -= OBJECT_PROB_TRAP
-    if roll < OBJECT_PROB_STATUE:
-        return OBJECT_TYPE_STATUE
-    roll -= OBJECT_PROB_STATUE
-    if roll < OBJECT_PROB_FOUNTAIN:
-        return OBJECT_TYPE_FOUNTAIN
-    roll -= OBJECT_PROB_FOUNTAIN
-    if roll < OBJECT_PROB_STAIRS_UP:
-        return OBJECT_TYPE_STAIRS_UP
-    roll -= OBJECT_PROB_STAIRS_UP
-    if roll < OBJECT_PROB_STAIRS_DOWN:
-        return OBJECT_TYPE_STAIRS_DOWN
-    roll -= OBJECT_PROB_STAIRS_DOWN
-    if roll < OBJECT_PROB_RUBBLE:
-        return OBJECT_TYPE_RUBBLE
-    roll -= OBJECT_PROB_RUBBLE
-    if roll < OBJECT_PROB_PILLAR:
-        return OBJECT_TYPE_PILLAR
-    roll -= OBJECT_PROB_PILLAR
-    if roll < OBJECT_PROB_ALTAR:
-        return OBJECT_TYPE_ALTAR
-    roll -= OBJECT_PROB_ALTAR
-    if roll < OBJECT_PROB_THRONE:
-        return OBJECT_TYPE_THRONE
-    roll -= OBJECT_PROB_THRONE
-    if roll < OBJECT_PROB_CHEST:
-        return OBJECT_TYPE_CHEST
-    roll -= OBJECT_PROB_CHEST
-    if roll < OBJECT_PROB_LEVER:
-        return OBJECT_TYPE_LEVER
-    roll -= OBJECT_PROB_LEVER
-    if roll < OBJECT_PROB_BUTTON:
-        return OBJECT_TYPE_BUTTON
-    roll -= OBJECT_PROB_BUTTON
-    if roll < OBJECT_PROB_CHAIR:
-        return OBJECT_TYPE_CHAIR
-    roll -= OBJECT_PROB_CHAIR
-    if roll < OBJECT_PROB_DEAD_BODY:
-        return OBJECT_TYPE_DEAD_BODY
-    roll -= OBJECT_PROB_DEAD_BODY
-    if roll < OBJECT_PROB_TABLE:
-        return OBJECT_TYPE_TABLE
-    roll -= OBJECT_PROB_TABLE
-    if roll < OBJECT_PROB_BED:
-        return OBJECT_TYPE_BED
-    # Default to POOL if nothing else hits, to account for float precision
-    return OBJECT_TYPE_POOL
+    object_probabilities = {
+        OBJECT_TYPE_TRAP: OBJECT_PROB_TRAP,
+        OBJECT_TYPE_STATUE: OBJECT_PROB_STATUE,
+        OBJECT_TYPE_FOUNTAIN: OBJECT_PROB_FOUNTAIN,
+        OBJECT_TYPE_STAIRS_UP: OBJECT_PROB_STAIRS_UP,
+        OBJECT_TYPE_STAIRS_DOWN: OBJECT_PROB_STAIRS_DOWN,
+        OBJECT_TYPE_RUBBLE: OBJECT_PROB_RUBBLE,
+        OBJECT_TYPE_PILLAR: OBJECT_PROB_PILLAR,
+        OBJECT_TYPE_ALTAR: OBJECT_PROB_ALTAR,
+        OBJECT_TYPE_THRONE: OBJECT_PROB_THRONE,
+        OBJECT_TYPE_CHEST: OBJECT_PROB_CHEST,
+        OBJECT_TYPE_LEVER: OBJECT_PROB_LEVER,
+        OBJECT_TYPE_BUTTON: OBJECT_PROB_BUTTON,
+        OBJECT_TYPE_CHAIR: OBJECT_PROB_CHAIR,
+        OBJECT_TYPE_DEAD_BODY: OBJECT_PROB_DEAD_BODY,
+        OBJECT_TYPE_TABLE: OBJECT_PROB_TABLE,
+        OBJECT_TYPE_POOL: OBJECT_PROB_POOL,
+    }
+    return _get_weighted_random_type(object_probabilities)
 
 def get_random_item_type():
     """
     Returns a random item type based on the probabilities in constants.py.
     """
-    roll = random.random()
-    if roll < ITEM_PROB_POTION:
-        return ITEM_TYPE_POTION
-    roll -= ITEM_PROB_POTION
-    if roll < ITEM_PROB_SCROLL:
-        return ITEM_TYPE_SCROLL
-    roll -= ITEM_PROB_SCROLL
-    if roll < ITEM_PROB_WEAPON:
-        return ITEM_TYPE_WEAPON
-    roll -= ITEM_PROB_WEAPON
-    if roll < ITEM_PROB_ARMOR:
-        return ITEM_TYPE_ARMOR
-    # Default to GOLD
-    return ITEM_TYPE_GOLD
+    item_probabilities = {
+        ITEM_TYPE_POTION: ITEM_PROB_POTION,
+        ITEM_TYPE_SCROLL: ITEM_PROB_SCROLL,
+        ITEM_TYPE_WEAPON: ITEM_PROB_WEAPON,
+        ITEM_TYPE_ARMOR: ITEM_PROB_ARMOR,
+        ITEM_TYPE_GOLD: ITEM_PROB_GOLD,
+    }
+    return _get_weighted_random_type(item_probabilities)
 
 def get_random_encounter_type():
     """
     Returns a random encounter type based on the probabilities in constants.py.
     """
-    roll = random.random()
-    if roll < ENCOUNTER_PROB_MONSTER:
-        return ENCOUNTER_TYPE_MONSTER
-    roll -= ENCOUNTER_PROB_MONSTER
-    if roll < ENCOUNTER_PROB_ANIMAL:
-        return ENCOUNTER_TYPE_ANIMAL
-    roll -= ENCOUNTER_PROB_ANIMAL
-    if roll < ENCOUNTER_PROB_UNDEAD:
-        return ENCOUNTER_TYPE_UNDEAD
-    # Default to SWARM
-    return ENCOUNTER_TYPE_SWARM
+    encounter_probabilities = {
+        ENCOUNTER_TYPE_MONSTER: ENCOUNTER_PROB_MONSTER,
+        ENCOUNTER_TYPE_ANIMAL: ENCOUNTER_PROB_ANIMAL,
+        ENCOUNTER_TYPE_UNDEAD: ENCOUNTER_PROB_UNDEAD,
+        ENCOUNTER_TYPE_SWARM: ENCOUNTER_PROB_SWARM,
+    }
+    return _get_weighted_random_type(encounter_probabilities)
 
 def get_center_of_blocks(blocks):
     """
@@ -102,3 +80,25 @@ def get_center_of_blocks(blocks):
     x_coords = [b.location.x for b in blocks]
     y_coords = [b.location.y for b in blocks]
     return (sum(x_coords) // len(x_coords), sum(y_coords) // len(y_coords))
+
+def get_relative_direction_from_center(segment_locations, center):
+    """
+    Determines the direction of a segment relative to a center point.
+    """
+    segment_center_x = sum(loc.x for loc in segment_locations) / len(segment_locations)
+    segment_center_y = sum(loc.y for loc in segment_locations) / len(segment_locations)
+    
+    dx = segment_center_x - center[0]
+    dy = segment_center_y - center[1]
+
+    if abs(dx) < 2 and abs(dy) < 2:
+        return "central"
+
+    if dy > abs(dx):
+        return "northern"
+    elif dy < -abs(dx):
+        return "southern"
+    elif dx > abs(dy):
+        return "eastern"
+    else:
+        return "western"

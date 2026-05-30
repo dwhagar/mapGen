@@ -17,4 +17,15 @@ class Passage:
         self.side1 = side1
         self.side2 = side2
         self.is_door = is_door
-        self.orientation = None  # 'horizontal' or 'vertical'
+        self.orientation = self._determine_orientation()
+
+    def _determine_orientation(self):
+        """
+        Determines the orientation of the passage (horizontal or vertical).
+        """
+        if self.side1 and self.side2:
+            if self.side1.location.x == self.side2.location.x:
+                return 'vertical'
+            elif self.side1.location.y == self.side2.location.y:
+                return 'horizontal'
+        return None
