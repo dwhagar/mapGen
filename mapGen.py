@@ -374,8 +374,8 @@ if __name__ == '__main__':
                         help='Set the page size of the PDF output. Defaults to A4.')
     parser.add_argument('-m', '--markdown', dest='md_filename', nargs='?', const='map.md', default=None,
                         help='Output the map descriptions to a Markdown file. Defaults to map.md if no filename is provided.')
-    parser.add_argument('--add-object', dest='add_object',
-                        help='Add an object to the map at a specific location. Format: index,x,y')
+    parser.add_argument('--add-object', dest='add_objects', action='append',
+                        help='Add an object to the map. Format: INT or INT,x,y. Can be used multiple times.')
     parser.add_argument('-W', '--width', dest='width', type=int, default=25,
                         help='Set the width of the map.')
     parser.add_argument('-H', '--height', type=int, default=25,
@@ -383,16 +383,22 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
-    add_object_data = None
-    if args.add_object:
-        try:
-            index, x, y = map(int, args.add_object.split(','))
-            add_object_data = (index, x, y)
-        except ValueError:
-            print("Invalid format for --add-object. Please use index,x,y.")
-            exit(1)
+    add_object_data = []
+    if args.add_objects:
+        for obj_str in args.add_objects:
+            try:
+                parts = list(map(int, obj_str.split(',')))
+                if len(parts) == 1:
+                    add_object_data.append((parts[0], None, None))
+                elif len(parts) == 3:
+                    add_object_data.append(tuple(parts))
+                else:
+                    raise ValueError
+            except ValueError:
+                print(f"Invalid format for --add-object: '{obj_str}'. Please use INT or INT,x,y.")
+                exit(1)
 
-    generator = Generator(width=args.width, height=args.height, add_object=add_object_data)
+    generator = Generator(width=args.width, height=args.height, add_objects=add_object_data)
     generated_map = generator.generate()
     
     if args.pdf_filename:

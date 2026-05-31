@@ -21,17 +21,17 @@ class Generator:
     """
     The main class for generating the map.
     """
-    def __init__(self, width=25, height=25, placement_retries=10, add_object=None):
+    def __init__(self, width=25, height=25, placement_retries=10, add_objects=None):
         """
         Initializes the Generator.
 
         :param placement_retries: The number of times to retry placing a room.
-        :param add_object: An object to add to the map.
+        :param add_objects: A list of objects to add to the map.
         """
         self.map = Map(width, height)
         self.placement_retries = placement_retries
         self.hallway_count = 0
-        self.add_object = add_object
+        self.add_objects = add_objects if add_objects else []
         self.default_color = Color(0.8, 0.8, 0.8)
 
     def generate(self):
@@ -110,8 +110,11 @@ class Generator:
         """
         print("Scattering rooms...")
         
-        if self.add_object:
-            obj_type, x, y = self.add_object
+        for obj_data in self.add_objects:
+            obj_type, x, y = obj_data
+            if x is None or y is None:
+                continue
+
             room_identifier = f"R{num_rooms + 1}"
             
             placed = False
@@ -124,11 +127,10 @@ class Generator:
                 if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
                     if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height):
                         placed = True
+                        num_rooms += 1
                         break
             if not placed:
                 print(f"Warning: Could not place room for object at ({x},{y}).")
-            else:
-                num_rooms -= 1
 
         for i in range(num_rooms):
             room_identifier = f"R{i+1}"
@@ -478,16 +480,31 @@ class Generator:
         Decorates the rooms on the map.
         """
         print("Decorating rooms...")
-        room_with_forced_object = None
-        if self.add_object:
-            obj_type, x, y = self.add_object
+        
+        forced_objects_with_loc = [obj for obj in self.add_objects if obj[1] is not None and obj[2] is not None]
+        forced_objects_no_loc = [obj for obj in self.add_objects if obj[1] is None and obj[2] is None]
+
+        rooms_with_forced_objects = set()
+
+        for obj_type, x, y in forced_objects_with_loc:
             area = self.map.get_area_by_location(x, y)
             if area and isinstance(area, Room):
-                area.decorate(self.map, forced_object=(obj_type, (x,y)))
-                room_with_forced_object = area
+                area.decorate(self.map, forced_object=(obj_type, (x, y)))
+                rooms_with_forced_objects.add(area.unique_id)
+
+        available_rooms = [room for room in self.map.rooms if room.unique_id not in rooms_with_forced_objects]
+        random.shuffle(available_rooms)
+
+        for obj_type, _, _ in forced_objects_no_loc:
+            if available_rooms:
+                room = available_rooms.pop()
+                room.decorate(self.map, forced_object=(obj_type, None))
+                rooms_with_forced_objects.add(room.unique_id)
+            else:
+                print(f"Warning: No available rooms to place object of type {obj_type}.")
 
         for room in self.map.rooms:
-            if room != room_with_forced_object:
+            if room.unique_id not in rooms_with_forced_objects:
                 room.decorate(self.map)
 
     def _decorate_hallways(self):

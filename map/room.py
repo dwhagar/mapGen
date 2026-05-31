@@ -98,8 +98,14 @@ class Room:
         Places items, objects, and encounters within the room based on its size and probabilities.
         """
         if forced_object:
-            obj_type, (x, y) = forced_object
-            chosen_block = next((b for b in self.blocks if b.location.x == x and b.location.y == y), None)
+            obj_type, location = forced_object
+            if location:
+                x, y = location
+                chosen_block = next((b for b in self.blocks if b.location.x == x and b.location.y == y), None)
+            else:
+                unoccupied_blocks = [b for b in self.blocks if not b.contents]
+                chosen_block = random.choice(unoccupied_blocks) if unoccupied_blocks else None
+
             if chosen_block:
                 new_content = self._create_map_object(chosen_block, get_center_of_blocks(self.blocks), obj_type=obj_type)
                 if new_content:
