@@ -56,7 +56,6 @@ class Generator:
         for hallway in self.map.hallways:
             self._ensure_hallway_passages(hallway)
 
-        self._build_connectivity_graph()
         self._ensure_map_connectivity()
 
         self._decorate_rooms()
@@ -412,6 +411,7 @@ class Generator:
         Builds the connectivity graph for the map.
         """
         print("Building connectivity graph...")
+        self.map.connectivity = {}
         for passage in self.map.passages:
             uid1 = passage.side1.area_uid
             uid2 = passage.side2.area_uid
@@ -429,6 +429,8 @@ class Generator:
             return
 
         while True:
+            self._build_connectivity_graph()
+            
             q = [all_areas[0].unique_id]
             visited_uids = {all_areas[0].unique_id}
             
@@ -463,7 +465,6 @@ class Generator:
                             if isinstance(getattr(block, direction), Wall):
                                 print(f"Connecting {unvisited_area.identifier} to visited area by creating a door.")
                                 self._create_passage_between_blocks(block, neighbor, direction, is_door=True)
-                                self.map.add_connection(unvisited_area.unique_id, neighbor.area_uid)
                                 connection_made = True
                                 break
                     if connection_made:
