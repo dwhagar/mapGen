@@ -1,14 +1,26 @@
+"""
+This module provides utility functions used across the map generation package.
+
+It includes functions for weighted random selections, calculating geometric
+properties of map areas, and comparing map elements.
+"""
 import random
 from .constants import *
 
 def _get_weighted_random_type(choices):
     """
-    Returns a random type based on a dictionary of weighted choices.
-    :param choices: A dictionary where keys are types and values are their probabilities.
+    Selects a random key from a dictionary of weighted choices.
+
+    This helper function takes a dictionary where keys are the items to be chosen
+    and values are their corresponding probabilities (weights).
+
+    :param choices: A dictionary where keys are the types and values are their probabilities.
+    :return: A randomly selected key based on the provided weights. Returns None if the
+             choices dictionary is empty or all weights are zero.
     """
     total_probability = sum(choices.values())
     if total_probability == 0:
-        return None # Or raise an error, depending on desired behavior
+        return None
 
     roll = random.uniform(0, total_probability)
     cumulative_probability = 0
@@ -17,12 +29,12 @@ def _get_weighted_random_type(choices):
         if roll < cumulative_probability:
             return item_type
     
-    # Fallback in case of floating point inaccuracies, return the last item
+    # Fallback in case of floating-point inaccuracies, returns the last item.
     return list(choices.keys())[-1]
 
 def get_random_object_type():
     """
-    Returns a random object type based on the probabilities in constants.py.
+    Returns a random object type based on the probabilities defined in constants.py.
     """
     object_probabilities = {
         OBJECT_TYPE_TRAP: OBJECT_PROB_TRAP,
@@ -71,10 +83,10 @@ def get_random_encounter_type():
 
 def get_center_of_blocks(blocks):
     """
-    Calculates the center of a list of blocks.
+    Calculates the geometric center of a list of blocks.
 
     :param blocks: A list of Block objects.
-    :return: A tuple representing the center coordinates, or None if the list is empty.
+    :return: A tuple (x, y) representing the center coordinates, or None if the list is empty.
     """
     if not blocks: return None
     x_coords = [b.location.x for b in blocks]
@@ -83,7 +95,13 @@ def get_center_of_blocks(blocks):
 
 def get_relative_direction_from_center(segment_locations, center):
     """
-    Determines the direction of a segment relative to a center point.
+    Determines the cardinal direction of a wall segment relative to the center of its area.
+
+    This is used for generating descriptive text, e.g., "On the northern wall...".
+
+    :param segment_locations: A list of Location objects for the wall segment.
+    :param center: A tuple (x, y) for the center of the area.
+    :return: A string representing the cardinal direction (e.g., "northern", "eastern").
     """
     segment_center_x = sum(loc.x for loc in segment_locations) / len(segment_locations)
     segment_center_y = sum(loc.y for loc in segment_locations) / len(segment_locations)
@@ -105,12 +123,15 @@ def get_relative_direction_from_center(segment_locations, center):
 
 def compare_passages(passage1, passage2):
     """
-    Compares two Passage objects to see if they are functionally identical.
-    Excludes unique_id from the comparison.
+    Compares two Passage objects to determine if they are functionally identical.
+
+    This comparison ignores the `unique_id` and focuses on properties like
+    orientation and the connected blocks. It handles cases where the `side1` and
+    `side2` attributes might be swapped between the two objects.
 
     :param passage1: The first Passage object.
     :param passage2: The second Passage object.
-    :return: True if the passages are identical, False otherwise.
+    :return: True if the passages are functionally the same, False otherwise.
     """
     if not passage1 and not passage2:
         return True
@@ -126,8 +147,10 @@ def compare_passages(passage1, passage2):
     if passage1.orientation is None:
         return True
 
-    # Compare sides. The order of side1 and side2 might be swapped.
-    p1_sides = {(passage1.side1.location, passage1.side1.area_uid), (passage1.side2.location, passage1.side2.area_uid)}
-    p2_sides = {(passage2.side1.location, passage2.side1.area_uid), (passage2.side2.location, passage2.side2.area_uid)}
+    # Compare the sets of connected blocks, ignoring the order of side1 and side2.
+    p1_sides = {(passage1.side1.location.x, passage1.side1.location.y, passage1.side1.area_uid), 
+                (passage1.side2.location.x, passage1.side2.location.y, passage1.side2.area_uid)}
+    p2_sides = {(passage2.side1.location.x, passage2.side1.location.y, passage2.side1.area_uid), 
+                (passage2.side2.location.x, passage2.side2.location.y, passage2.side2.area_uid)}
 
     return p1_sides == p2_sides

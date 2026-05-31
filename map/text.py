@@ -1,3 +1,10 @@
+"""
+This module contains all the descriptive text components used for generating
+random descriptions for items, objects, encounters, and wall decorations.
+
+The collections of strings in this file are used to build dynamic and varied
+descriptions for the different elements that can be found within the generated map.
+"""
 from .constants import (
     # Item types
     ITEM_TYPE_POTION,
@@ -30,7 +37,10 @@ from .constants import (
     ENCOUNTER_TYPE_SWARM,
 )
 
-# Descriptions for Items
+# --- Descriptions for Items ---
+# These lists are used to construct random descriptions for items found in the map.
+# A description is typically formed by combining an adjective, a noun, and a situation.
+
 ITEM_ADJECTIVES = [
     "a dusty", "a rusty", "a gleaming", "an old", "a small", "a large", "a forgotten",
 ]
@@ -45,7 +55,9 @@ ITEM_DESCRIPTIONS = [
     "lying on the floor", "tucked into a corner", "propped against a wall", "shimmering faintly",
 ]
 
-# Descriptions for Map Objects
+# --- Descriptions for Map Objects ---
+# Similar to items, these lists provide the building blocks for describing map objects.
+
 OBJECT_ADJECTIVES = [
     "a sturdy", "a broken", "an ornate", "a simple", "a heavy", "a light",
 ]
@@ -72,7 +84,10 @@ OBJECT_DESCRIPTIONS = [
     "sitting in the middle of the room", "covered in cobwebs", "that looks recently used", "carved with strange symbols",
 ]
 
-# Descriptions for Encounters
+# --- Descriptions for Encounters ---
+# These dictionaries provide components for generating encounter descriptions,
+# with support for both singular and plural forms.
+
 ENCOUNTER_PREFIXES = {
     "singular": ["A lone", "A menacing", "A strange"],
     "plural": ["A group of", "A pack of", "A cluster of"],
@@ -88,7 +103,10 @@ ENCOUNTER_ACTIONS = {
     "plural": ["are patrolling the area", "are sleeping soundly", "are standing guard", "are making strange noises", "are pacing back and forth", "are shuffling aimlessly"],
 }
 
-# Descriptions for Wall Decorations
+# --- Descriptions for Wall Decorations ---
+# A list of flavorful descriptions that can be randomly applied to wall segments
+# to make the environment more interesting.
+
 WALL_DECORATIONS = [
     # Mundane & Common
     "a series of faded tapestries depicting a forgotten battle",
@@ -129,6 +147,9 @@ WALL_DECORATIONS = [
     "a series of carvings that seem to move when you're not looking directly at them",
     "a wall that is covered in a living, breathing carpet of moss that gently sways",
 ]
+
+# --- Descriptions for Trapped Doors ---
+# A list of descriptions for different kinds of traps that can be found on doors.
 
 TRAPPED_DOOR_DESCRIPTIONS = [
     "a faint, almost invisible tripwire stretched across the bottom of the doorframe",

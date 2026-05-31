@@ -1,3 +1,7 @@
+"""
+This module defines the Map class, which serves as the main container for all
+elements of a generated dungeon map.
+"""
 from .room import Room
 from .block import Block
 from .passage import Passage
@@ -6,7 +10,12 @@ from .wall_decoration import WallDecoration
 
 class Map:
     """
-    Represents the entire map, including all its rooms, hallways, and blocks.
+    Represents the entire map structure.
+
+    This class holds all the components of the map, including rooms, hallways,
+    the grid of blocks, passages, and wall decorations. It provides methods
+    to add and retrieve these components, acting as the central data repository
+    for a generated map instance.
     """
     MIN_ROOMS = 5
     MAX_ROOMS = 30
@@ -14,23 +23,26 @@ class Map:
     def __init__(self, width=25, height=25):
         """
         Initializes the Map.
+
+        :param width: The width of the map grid.
+        :param height: The height of the map grid.
         """
         self.width = width
         self.height = height
         self.rooms = []
         self.hallways = []
-        self.blocks = {}
+        self.blocks = {}  # Maps (x, y) coordinates to Block objects.
         self.passages = []
         self.wall_decorations = []
-        self.connectivity = {} # To store the graph: {uid: [uid, uid]}
-        self.area_by_uid = {}
-        self.block_by_uid = {}
+        self.connectivity = {}  # Adjacency list for the connectivity graph of areas.
+        self.area_by_uid = {}  # Maps area unique IDs to area objects.
+        self.block_by_uid = {}  # Maps block unique IDs to block objects.
 
     def add_room(self, room: Room):
         """
-        Adds a room to the map.
+        Adds a room to the map and updates the relevant lookup dictionaries.
 
-        :param room: The room to add.
+        :param room: The Room object to add.
         """
         self.rooms.append(room)
         self.connectivity[room.unique_id] = []
@@ -42,9 +54,9 @@ class Map:
 
     def add_hallway(self, hallway: Hallway):
         """
-        Adds a hallway to the map.
+        Adds a hallway to the map and updates the relevant lookup dictionaries.
 
-        :param hallway: The hallway to add.
+        :param hallway: The Hallway object to add.
         """
         self.hallways.append(hallway)
         self.connectivity[hallway.unique_id] = []
@@ -58,13 +70,13 @@ class Map:
         """
         Adds a wall decoration to the map.
 
-        :param decoration: The wall decoration to add.
+        :param decoration: The WallDecoration object to add.
         """
         self.wall_decorations.append(decoration)
 
     def add_connection(self, uid1, uid2):
         """
-        Records a connection between two map areas (rooms or hallways).
+        Records a connection between two map areas in the connectivity graph.
 
         :param uid1: The unique ID of the first area.
         :param uid2: The unique ID of the second area.
@@ -81,7 +93,7 @@ class Map:
 
         :param x: The x-coordinate.
         :param y: The y-coordinate.
-        :return: The block at the given coordinates, or None if no block is found.
+        :return: The Block object at the given coordinates, or None if no block is found.
         """
         return self.blocks.get((x, y))
 
@@ -90,24 +102,24 @@ class Map:
         Retrieves a block by its unique ID.
 
         :param uid: The unique ID of the block.
-        :return: The block with the given unique ID, or None if no block is found.
+        :return: The Block object with the given unique ID, or None if no block is found.
         """
         return self.block_by_uid.get(uid)
 
     def add_passage(self, passage: Passage):
         """
-        Adds a passage to the map.
+        Adds a passage to the map's list of passages.
 
-        :param passage: The passage to add.
+        :param passage: The Passage object to add.
         """
         self.passages.append(passage)
 
     def get_area_by_identifier(self, identifier):
         """
-        Retrieves an area by its identifier.
+        Retrieves an area (room or hallway) by its string identifier.
 
-        :param identifier: The identifier of the area.
-        :return: The area with the given identifier, or None if no area is found.
+        :param identifier: The identifier of the area (e.g., "R1", "H1").
+        :return: The area object, or None if not found.
         """
         for area in self.rooms + self.hallways:
             if area.identifier == identifier:
@@ -119,17 +131,17 @@ class Map:
         Retrieves an area by its unique ID.
 
         :param uid: The unique ID of the area.
-        :return: The area with the given unique ID, or None if no area is found.
+        :return: The area object, or None if not found.
         """
         return self.area_by_uid.get(uid)
 
     def get_area_by_location(self, x, y):
         """
-        Retrieves the area at the given coordinates.
+        Retrieves the area containing the given coordinates.
 
         :param x: The x-coordinate.
         :param y: The y-coordinate.
-        :return: The area at the given coordinates, or None if no area is found.
+        :return: The area object at the location, or None if no area is found.
         """
         block = self.get_block_at(x, y)
         if block:
@@ -141,7 +153,7 @@ class Map:
         Retrieves a room by its identifier.
 
         :param identifier: The identifier of the room.
-        :return: The room with the given identifier, or None if no room is found.
+        :return: The Room object, or None if no room with that identifier is found.
         """
         for room in self.rooms:
             if room.identifier == identifier:
@@ -150,10 +162,10 @@ class Map:
 
     def get_hallway_by_identifier(self, identifier):
         """
-        Finds a hallway in the map by its unique identifier.
+        Retrieves a hallway by its identifier.
 
         :param identifier: The identifier of the hallway.
-        :return: The hallway with the given identifier, or None if no hallway is found.
+        :return: The Hallway object, or None if no hallway with that identifier is found.
         """
         for hallway in self.hallways:
             if hallway.identifier == identifier:
