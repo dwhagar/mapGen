@@ -84,8 +84,8 @@ ENCOUNTER_NOUNS = {
     ENCOUNTER_TYPE_SWARM: {"singular": "swarm of vermin", "plural": "swarms of vermin"},
 }
 ENCOUNTER_ACTIONS = {
-    "singular": ["is patrolling the area", "is sleeping soundly", "is feasting on a recent kill"],
-    "plural": ["are patrolling the area", "are sleeping soundly", "are feasting on a recent kill"],
+    "singular": ["is patrolling the area", "is sleeping soundly", "is standing guard", "is making strange noises", "is pacing back and forth", "is shuffling aimlessly"],
+    "plural": ["are patrolling the area", "are sleeping soundly", "are standing guard", "are making strange noises", "are pacing back and forth", "are shuffling aimlessly"],
 }
 
 # Descriptions for Wall Decorations

@@ -310,20 +310,10 @@ class PdfGenerator:
 
         legend_y_start = grid_end_y - 20 * mm
         self._draw_legend(c, legend_y_start, block_size_pts, width)
-
-        c.showPage()
         
         if self.include_index:
+            c.showPage()
             self._draw_index(c, margin, height - margin, height, margin)
-        
-        c.showPage()
-        c.setFont("Helvetica", 10)
-        text_object = c.beginText(margin, height - margin)
-        text_object.textLine("Map Connectivity Graph:")
-        text_object.textLine("")
-        for key, connections in self.map.connectivity.items():
-            text_object.textLine(f"{key} connects to: {', '.join(connections)}")
-        c.drawText(text_object)
 
         c.save()
         print("PDF saved successfully.")

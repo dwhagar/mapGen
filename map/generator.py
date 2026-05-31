@@ -32,6 +32,7 @@ class Generator:
         self.placement_retries = placement_retries
         self.hallway_count = 0
         self.add_object = add_object
+        self.default_color = Color(0.8, 0.8, 0.8)
 
     def generate(self):
         """
@@ -55,6 +56,9 @@ class Generator:
         for hallway in self.map.hallways:
             self._ensure_hallway_passages(hallway)
 
+        self._build_connectivity_graph()
+        self._ensure_map_connectivity()
+
         self._decorate_rooms()
         self._decorate_hallways()
         self._decorate_walls()
@@ -76,13 +80,13 @@ class Generator:
                     return False
         return True
 
-    def _place_single_room(self, room_identifier, room_min_x, room_min_y, room_width, room_height, color_val):
+    def _place_single_room(self, room_identifier, room_min_x, room_min_y, room_width, room_height):
         """
         Helper method to create and place a single room on the map.
         """
         if room_width * room_height < 4: return False
 
-        new_room = Room(identifier=room_identifier, color=Color(color_val, color_val, color_val))
+        new_room = Room(identifier=room_identifier, color=self.default_color)
         
         blocks_to_process_walls = []
         for y_offset in range(room_height):
@@ -109,7 +113,6 @@ class Generator:
         if self.add_object:
             obj_type, x, y = self.add_object
             room_identifier = f"R{num_rooms + 1}"
-            color_val = random.uniform(0.6, 0.9)
             
             placed = False
             for _ in range(self.placement_retries):
@@ -119,7 +122,7 @@ class Generator:
                 room_min_y = y - random.randint(1, room_height - 1)
 
                 if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
-                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val):
+                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height):
                         placed = True
                         break
             if not placed:
@@ -139,8 +142,7 @@ class Generator:
                 room_min_y = random.randint(1, self.map.height - room_height + 1)
 
                 if self._is_area_free(room_min_x, room_min_y, room_width, room_height):
-                    color_val = random.uniform(0.6, 0.9)
-                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height, color_val):
+                    if self._place_single_room(room_identifier, room_min_x, room_min_y, room_width, room_height):
                         placed = True
                         break
             
@@ -250,9 +252,8 @@ class Generator:
                     blocks_to_process_walls.append(block)
             
             if blocks_to_process_walls:
-                color_val = random.uniform(0.4, 0.7)
                 new_hallway.blocks = blocks_to_process_walls
-                new_hallway.color = Color(color_val, color_val, color_val)
+                new_hallway.color = self.default_color
                 self.map.add_hallway(new_hallway)
 
                 for block in blocks_to_process_walls:
@@ -276,7 +277,7 @@ class Generator:
         Creates a passage between two specific blocks in a given direction.
         """
         x, y = block1.location.x, block1.location.y
-        adj_passage_type = None
+        adj_passages = []
 
         if direction in ['east', 'west']:
             for dy in [-1, 1]:
@@ -284,19 +285,25 @@ class Generator:
                 if adj_block:
                     connection = getattr(adj_block, direction, None)
                     if isinstance(connection, Passage):
-                        adj_passage_type = connection.is_door
-                        break
+                        adj_passages.append(connection)
         elif direction in ['north', 'south']:
             for dx in [-1, 1]:
                 adj_block = self.map.get_block_at(x + dx, y)
                 if adj_block:
                     connection = getattr(adj_block, direction, None)
                     if isinstance(connection, Passage):
-                        adj_passage_type = connection.is_door
-                        break
-        
-        if adj_passage_type is not None:
-            is_door = adj_passage_type
+                        adj_passages.append(connection)
+
+        if adj_passages:
+            is_door = any(p.is_door for p in adj_passages)
+            is_secret = any(p.is_secret for p in adj_passages)
+            is_trapped = any(p.is_trapped for p in adj_passages)
+
+            if (is_secret or is_trapped) and not all(p.is_secret or p.is_trapped for p in adj_passages):
+                is_secret = False
+                is_trapped = False
+            elif not (is_secret or is_trapped) and any(p.is_secret or p.is_trapped for p in adj_passages):
+                is_secret = True
 
         description = None
         if is_trapped:
@@ -397,6 +404,74 @@ class Generator:
             print(f"Hallway {hallway.identifier} is missing passages. Attempting to add them.")
             for room_uid in hallway.connects_rooms:
                 self._create_passage_between_hallway_and_room(hallway, room_uid)
+
+    def _build_connectivity_graph(self):
+        """
+        Builds the connectivity graph for the map.
+        """
+        print("Building connectivity graph...")
+        for passage in self.map.passages:
+            uid1 = passage.side1.area_uid
+            uid2 = passage.side2.area_uid
+            if uid1 and uid2:
+                self.map.add_connection(uid1, uid2)
+
+    def _ensure_map_connectivity(self):
+        """
+        Ensures all areas on the map are connected using a BFS-based approach on the connectivity graph.
+        If disconnected components are found, it will add passages until the entire map is a single connected graph.
+        """
+        print("Ensuring map connectivity...")
+        all_areas = self.map.rooms + self.map.hallways
+        if not all_areas:
+            return
+
+        while True:
+            q = [all_areas[0].unique_id]
+            visited_uids = {all_areas[0].unique_id}
+            
+            head = 0
+            while head < len(q):
+                current_uid = q[head]
+                head += 1
+                
+                for neighbor_uid in self.map.connectivity.get(current_uid, []):
+                    if neighbor_uid not in visited_uids:
+                        visited_uids.add(neighbor_uid)
+                        q.append(neighbor_uid)
+
+            all_area_uids = {area.unique_id for area in all_areas}
+            unvisited_uids = all_area_uids - visited_uids
+
+            if not unvisited_uids:
+                print("Map is fully connected.")
+                break
+
+            print(f"Found {len(unvisited_uids)} unreachable areas. Attempting to connect...")
+            
+            connection_made = False
+            for area_uid in unvisited_uids:
+                unvisited_area = self.map.get_area_by_uid(area_uid)
+                if not unvisited_area: continue
+
+                for block in unvisited_area.blocks:
+                    for direction, (dx, dy) in {'north': (0, -1), 'south': (0, 1), 'east': (1, 0), 'west': (-1, 0)}.items():
+                        neighbor = self.map.get_block_at(block.location.x + dx, block.location.y + dy)
+                        if neighbor and neighbor.area_uid in visited_uids:
+                            if isinstance(getattr(block, direction), Wall):
+                                print(f"Connecting {unvisited_area.identifier} to visited area by creating a door.")
+                                self._create_passage_between_blocks(block, neighbor, direction, is_door=True)
+                                self.map.add_connection(unvisited_area.unique_id, neighbor.area_uid)
+                                connection_made = True
+                                break
+                    if connection_made:
+                        break
+                if connection_made:
+                    break
+            
+            if not connection_made:
+                print("Warning: Could not find a place to connect an isolated area.")
+                break
 
     def _decorate_rooms(self):
         """
