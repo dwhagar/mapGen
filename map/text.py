@@ -53,8 +53,6 @@ OBJECT_NOUNS = {
     OBJECT_TYPE_TRAP: "trap",
     OBJECT_TYPE_STATUE: "statue",
     OBJECT_TYPE_FOUNTAIN: "fountain",
-    "stairs_up": "staircase going up",
-    "stairs_down": "staircase going down",
     OBJECT_TYPE_STAIRS_UP: "staircase going up",
     OBJECT_TYPE_STAIRS_DOWN: "staircase going down",
     OBJECT_TYPE_RUBBLE: "pile of rubble",
@@ -75,18 +73,20 @@ OBJECT_DESCRIPTIONS = [
 ]
 
 # Descriptions for Encounters
-ENCOUNTER_PREFIXES = [
-    "A group of", "A lone", "A menacing", "A strange",
-]
-ENCOUNTER_NOUNS = {
-    ENCOUNTER_TYPE_MONSTER: "monsters",
-    ENCOUNTER_TYPE_ANIMAL: "animals",
-    ENCOUNTER_TYPE_UNDEAD: "undead creatures",
-    ENCOUNTER_TYPE_SWARM: "a swarm of vermin",
+ENCOUNTER_PREFIXES = {
+    "singular": ["A lone", "A menacing", "A strange"],
+    "plural": ["A group of", "A pack of", "A cluster of"],
 }
-ENCOUNTER_ACTIONS = [
-    "guarding a treasure", "patrolling the area", "sleeping soundly", "feasting on a recent kill",
-]
+ENCOUNTER_NOUNS = {
+    ENCOUNTER_TYPE_MONSTER: {"singular": "monster", "plural": "monsters"},
+    ENCOUNTER_TYPE_ANIMAL: {"singular": "animal", "plural": "animals"},
+    ENCOUNTER_TYPE_UNDEAD: {"singular": "undead creature", "plural": "undead creatures"},
+    ENCOUNTER_TYPE_SWARM: {"singular": "swarm of vermin", "plural": "swarms of vermin"},
+}
+ENCOUNTER_ACTIONS = {
+    "singular": ["is patrolling the area", "is sleeping soundly", "is feasting on a recent kill"],
+    "plural": ["are patrolling the area", "are sleeping soundly", "are feasting on a recent kill"],
+}
 
 # Descriptions for Wall Decorations
 WALL_DECORATIONS = [
@@ -128,4 +128,17 @@ WALL_DECORATIONS = [
     "a collection of ancient weapons, mounted on the wall, that seem to hum with a latent power",
     "a series of carvings that seem to move when you're not looking directly at them",
     "a wall that is covered in a living, breathing carpet of moss that gently sways",
+]
+
+TRAPPED_DOOR_DESCRIPTIONS = [
+    "a faint, almost invisible tripwire stretched across the bottom of the doorframe",
+    "a small, cleverly hidden dart hole in the adjacent wall",
+    "a pressure plate under the floor just before the door",
+    "a strange, sweet-smelling gas that hisses from a hidden nozzle",
+    "a series of small, sharp spikes that spring from the doorframe",
+    "a heavy block that falls from the ceiling above the door",
+    "a magical glyph on the door that glows with a faint, menacing light",
+    "a spring-loaded blade that sweeps across the doorway",
+    "a pit that opens up in the floor just beyond the door",
+    "a loud, piercing alarm that sounds when the door is opened",
 ]

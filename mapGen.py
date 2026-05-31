@@ -1,7 +1,7 @@
 import argparse
 from reportlab.lib import pagesizes
 from reportlab.pdfgen import canvas
-from reportlab.lib.colors import black, red, blue, green, white, Color, orange
+from reportlab.lib.colors import black, red, blue, green, white, Color, orange, brown
 from reportlab.lib.units import mm
 import math
 from collections import defaultdict
@@ -63,11 +63,15 @@ class PdfGenerator:
             ("Wall", black, lambda c, x, y, s: c.rect(x, y + s*0.4, s, s*0.2, fill=1)),
         ]
         
-        def draw_door_legend(c, x, y, s):
-            c.setFillColor(black)
-            c.rect(x, y + s*0.4, s, s*0.2, fill=1)
-            draw_door_symbol(c, x + s/2, y + s/2, s, 'horizontal')
-        entries.append(("Door", green, draw_door_legend))
+        def draw_door_legend(c, x, y, s, color):
+            c.setFillColor(color)
+            draw_door_symbol(c, x + s/2, y + s/2, s, 'horizontal', color)
+
+        entries.append(("Open Door", blue, lambda c, x, y, s: draw_door_legend(c, x, y, s, blue)))
+        entries.append(("Closed Door", green, lambda c, x, y, s: draw_door_legend(c, x, y, s, green)))
+        entries.append(("Locked Door", brown, lambda c, x, y, s: draw_door_legend(c, x, y, s, brown)))
+        entries.append(("Trapped Door", red, lambda c, x, y, s: draw_door_legend(c, x, y, s, red)))
+        entries.append(("Secret Door", orange, lambda c, x, y, s: draw_door_legend(c, x, y, s, orange)))
 
         num_entries = len(entries)
         entries_per_row = 4
@@ -268,16 +272,24 @@ class PdfGenerator:
         for passage in self.map.passages:
             if not passage.is_door: continue
             
+            door_color = green  # Default for closed door
+            if passage.is_secret:
+                door_color = orange
+            elif passage.is_trapped:
+                door_color = red
+            elif passage.is_locked:
+                door_color = brown
+            elif passage.is_open:
+                door_color = blue
+
             block1, block2 = passage.side1, passage.side2
             x1, y1 = block1.location.x, block1.location.y
             x2, y2 = block2.location.x, block2.location.y
-
-            orientation = 'horizontal' if x1 == x2 else 'vertical'
             
             draw_x = (self.coord_table[(x1,y1)]['bl'][0] + self.coord_table[(x2,y2)]['br'][0]) / 2
             draw_y = (self.coord_table[(x1,y1)]['bl'][1] + self.coord_table[(x2,y2)]['tr'][1]) / 2
 
-            draw_door_symbol(c, draw_x, draw_y, block_size_pts, orientation)
+            draw_door_symbol(c, draw_x, draw_y, block_size_pts, passage.orientation, door_color)
 
         # 6. Draw coordinates and area identifiers
         c.setFont("Helvetica", 8)

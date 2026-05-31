@@ -3,9 +3,9 @@ import uuid
 from .item import Item
 from .encounter import Encounter
 from .passage import Passage
-from .constants import HALLWAY_ITEM_CHANCE, HALLWAY_ENCOUNTER_CHANCE, ENCOUNTER_TYPE_SWARM
+from .constants import HALLWAY_ITEM_CHANCE, HALLWAY_ENCOUNTER_CHANCE
 from .utils import get_random_item_type, get_random_encounter_type
-from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
+from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS
 
 class Hallway:
     """
@@ -80,14 +80,7 @@ class Hallway:
 
             elif roll < HALLWAY_ITEM_CHANCE + HALLWAY_ENCOUNTER_CHANCE:
                 enc_type = get_random_encounter_type()
-                noun = ENCOUNTER_NOUNS[enc_type]
-                action = random.choice(ENCOUNTER_ACTIONS)
-                if enc_type == ENCOUNTER_TYPE_SWARM:
-                    description = f"A {noun} is {action}."
-                else:
-                    prefix = random.choice(ENCOUNTER_PREFIXES)
-                    description = f"{prefix} {noun} are {action}."
-                new_content = Encounter(encounter_type=enc_type, block_uid=chosen_block.unique_id, description=description)
+                new_content = Encounter(encounter_type=enc_type, block_uid=chosen_block.unique_id)
             
             if new_content:
                 chosen_block.contents.append(new_content)

@@ -7,7 +7,7 @@ from .stairs import Stairs
 from .passage import Passage
 from .constants import (ROOM_ITEM_CHANCE, ROOM_ENCOUNTER_CHANCE, ROOM_OBJECT_CHANCE, ENCOUNTER_TYPE_SWARM, OBJECT_TYPE_STAIRS_UP, OBJECT_TYPE_STAIRS_DOWN, BLOCKS_PER_CONTENT_SLOT)
 from .utils import get_random_item_type, get_random_encounter_type, get_random_object_type, get_center_of_blocks
-from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, OBJECT_ADJECTIVES, OBJECT_NOUNS, OBJECT_DESCRIPTIONS, ENCOUNTER_PREFIXES, ENCOUNTER_NOUNS, ENCOUNTER_ACTIONS
+from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, OBJECT_ADJECTIVES, OBJECT_NOUNS, OBJECT_DESCRIPTIONS
 
 class Room:
     """
@@ -77,14 +77,7 @@ class Room:
 
     def _create_encounter(self, block):
         enc_type = get_random_encounter_type()
-        noun = ENCOUNTER_NOUNS[enc_type]
-        action = random.choice(ENCOUNTER_ACTIONS)
-        if enc_type == ENCOUNTER_TYPE_SWARM:
-            description = f"A {noun} is {action}."
-        else:
-            prefix = random.choice(ENCOUNTER_PREFIXES)
-            description = f"{prefix} {noun} are {action}."
-        return Encounter(encounter_type=enc_type, block_uid=block.unique_id, description=description)
+        return Encounter(encounter_type=enc_type, block_uid=block.unique_id)
 
     def _create_map_object(self, block, room_center, obj_type=None):
         if obj_type is None:

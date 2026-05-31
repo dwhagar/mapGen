@@ -11,8 +11,8 @@ class Stairs(MapObject):
             raise ValueError("Direction must be 'up' or 'down'")
         self.direction = direction
         
-        description = f"There is a {OBJECT_NOUNS[f'stairs_{self.direction}']} {position}."
         object_type = OBJECT_TYPE_STAIRS_UP if self.direction == "up" else OBJECT_TYPE_STAIRS_DOWN
+        description = f"There is a {OBJECT_NOUNS[object_type]} {position}."
         super().__init__(object_type, [block_uid], description)
 
     def get_icon(self):
@@ -24,4 +24,5 @@ class Stairs(MapObject):
         self.direction = direction
         # Update description when direction changes
         position = self.description.split(" ")[-1] # cheap way to get position back
-        self.description = f"There is a {OBJECT_NOUNS[f'stairs_{self.direction}']} {position}."
+        object_type = OBJECT_TYPE_STAIRS_UP if self.direction == "up" else OBJECT_TYPE_STAIRS_DOWN
+        self.description = f"There is a {OBJECT_NOUNS[object_type]} {position}."

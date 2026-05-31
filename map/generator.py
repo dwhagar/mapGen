@@ -12,8 +12,10 @@ from .wall import Wall
 from .passage import Passage
 from .wall_decoration import WallDecoration
 from .utils import get_center_of_blocks
-from .constants import WALL_DECORATION_CHANCE, PASSAGE_IS_DOOR, HALLWAY_OBSTACLE_COST, PASSAGE_CREATION_CHANCE
-from .text import WALL_DECORATIONS
+from .constants import WALL_DECORATION_CHANCE, HALLWAY_OBSTACLE_COST, PASSAGE_CREATION_CHANCE, \
+    PASSAGE_PROB_DOOR, PASSAGE_PROB_SECRET, PASSAGE_PROB_TRAPPED, PASSAGE_PROB_LOCKED, PASSAGE_PROB_OPEN
+from .text import WALL_DECORATIONS, TRAPPED_DOOR_DESCRIPTIONS
+
 
 class Generator:
     """
@@ -269,7 +271,7 @@ class Generator:
         for room1, room2 in connections:
             self._create_hallway_between_rooms(room1, room2)
 
-    def _create_passage_between_blocks(self, block1, block2, direction, is_door):
+    def _create_passage_between_blocks(self, block1, block2, direction, is_door, is_secret=False, is_trapped=False, is_locked=False, is_open=False):
         """
         Creates a passage between two specific blocks in a given direction.
         """
@@ -296,7 +298,11 @@ class Generator:
         if adj_passage_type is not None:
             is_door = adj_passage_type
 
-        passage = Passage(side1=block1, side2=block2, is_door=is_door)
+        description = None
+        if is_trapped:
+            description = random.choice(TRAPPED_DOOR_DESCRIPTIONS)
+
+        passage = Passage(side1=block1, side2=block2, is_door=is_door, is_secret=is_secret, is_trapped=is_trapped, is_locked=is_locked, is_open=is_open, description=description)
         setattr(block1, direction, passage)
         opposite_direction = {'north': 'south', 'south': 'north', 'east': 'west', 'west': 'east'}[direction]
         setattr(block2, opposite_direction, passage)
@@ -317,8 +323,17 @@ class Generator:
                         if neighbor and not neighbor.empty and block.area_uid != neighbor.area_uid:
                             if isinstance(getattr(block, direction), Wall):
                                 if random.random() < PASSAGE_CREATION_CHANCE:
-                                    is_door = random.random() < PASSAGE_IS_DOOR
-                                    self._create_passage_between_blocks(block, neighbor, direction, is_door)
+                                    is_door = random.random() < PASSAGE_PROB_DOOR
+                                    is_secret = random.random() < PASSAGE_PROB_SECRET
+                                    is_trapped = False
+                                    is_locked = False
+                                    is_open = False
+                                    if is_door:
+                                        is_trapped = random.random() < PASSAGE_PROB_TRAPPED
+                                        is_locked = random.random() < PASSAGE_PROB_LOCKED
+                                        if not is_locked:
+                                            is_open = random.random() < PASSAGE_PROB_OPEN
+                                    self._create_passage_between_blocks(block, neighbor, direction, is_door, is_secret, is_trapped, is_locked, is_open)
 
     def _create_passage_between_hallway_and_room(self, hallway, room_uid):
         """
