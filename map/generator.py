@@ -27,7 +27,7 @@ class Generator:
     to scattering rooms, creating connections, and ensuring the final map is coherent
     and fully connected.
     """
-    def __init__(self, width=25, height=25, placement_retries=10, add_objects=None, maze_mode=False):
+    def __init__(self, width=25, height=25, placement_retries=10, add_objects=None, maze_mode=False, max_rooms=False):
         """
         Initializes the map Generator.
 
@@ -36,6 +36,7 @@ class Generator:
         :param placement_retries: The number of times to attempt placing a room before giving up.
         :param add_objects: A list of specific objects to force into the map generation.
         :param maze_mode: If True, generate a maze; otherwise, use hallway connections.
+        :param max_rooms: If True, skews the number of rooms to be higher.
         """
         self.map = Map(width, height)
         self.placement_retries = placement_retries
@@ -43,6 +44,7 @@ class Generator:
         self.add_objects = add_objects if add_objects else []
         self.default_color = Color(0.8, 0.8, 0.8)
         self.maze_mode = maze_mode
+        self.max_rooms = max_rooms
 
     def generate(self):
         """
@@ -64,7 +66,14 @@ class Generator:
                 self.map.blocks[(x, y)] = Block(location=Location(x, y), empty=True)
         
         # 2. Scatter rooms.
-        num_rooms = random.randint(self.map.MIN_ROOMS, self.map.MAX_ROOMS)
+        if self.max_rooms:
+            # Skew the random distribution towards the higher end for room count
+            possible_rooms = list(range(self.map.MIN_ROOMS, self.map.MAX_ROOMS + 1))
+            weights = [i**2 for i in possible_rooms] # Exponentially increase the weight for higher room counts
+            num_rooms = random.choices(possible_rooms, weights=weights, k=1)[0]
+        else:
+            num_rooms = random.randint(self.map.MIN_ROOMS, self.map.MAX_ROOMS)
+
         print(f"Attempting to generate {num_rooms} rooms.")
         self._scatter_rooms(num_rooms)
 

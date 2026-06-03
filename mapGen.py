@@ -454,6 +454,8 @@ if __name__ == '__main__':
                         help='Set the height of the map.')
     parser.add_argument('--maze', action='store_true',
                         help='Use the maze generation algorithm instead of the hallway algorithm.')
+    parser.add_argument('--maxrooms', action='store_true',
+                        help='Skew the number of rooms to be higher.')
     
     args = parser.parse_args()
 
@@ -474,7 +476,7 @@ if __name__ == '__main__':
                 exit(1)
 
     # Generate the map
-    generator = Generator(width=args.width, height=args.height, add_objects=add_object_data, maze_mode=args.maze)
+    generator = Generator(width=args.width, height=args.height, add_objects=add_object_data, maze_mode=args.maze, max_rooms=args.maxrooms)
     generated_map = generator.generate()
     
     # Output to PDF if requested
