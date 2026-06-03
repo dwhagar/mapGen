@@ -3,18 +3,53 @@ This module defines the Room class, which represents a significant area on the m
 composed of multiple blocks. It handles the decoration of the room with various contents.
 """
 import random
-import uuid
+from .area import Area
 from .item import Item
 from .object import MapObject
 from .encounter import Encounter
 from .stairs import Stairs
-from .passage import Passage
 from .constants import (ROOM_ITEM_CHANCE, ROOM_ENCOUNTER_CHANCE, ROOM_OBJECT_CHANCE, 
                         OBJECT_TYPE_STAIRS_UP, OBJECT_TYPE_STAIRS_DOWN, BLOCKS_PER_CONTENT_SLOT)
-from .utils import get_random_item_type, get_random_encounter_type, get_random_object_type, get_center_of_blocks
+from .utils import get_random_item_type, get_random_encounter_type, get_random_object_type, get_center_of_blocks, get_relative_direction_from_center
 from .text import ITEM_ADJECTIVES, ITEM_NOUNS, ITEM_DESCRIPTIONS, OBJECT_ADJECTIVES, OBJECT_NOUNS, OBJECT_DESCRIPTIONS
 
-class Room:
+def decorate_rooms(the_map, add_objects):
+    """
+    Decorates all rooms on the map with items, objects, and encounters.
+    Handles both randomly placed content and user-specified forced objects.
+    """
+    print("Decorating rooms...")
+    
+    forced_objects_with_loc = [obj for obj in add_objects if obj[1] is not None and obj[2] is not None]
+    forced_objects_no_loc = [obj for obj in add_objects if obj[1] is None and obj[2] is None]
+
+    rooms_with_forced_objects = set()
+
+    # Place objects with specific locations first.
+    for obj_type, x, y in forced_objects_with_loc:
+        area = the_map.get_area_by_location(x, y)
+        if area and isinstance(area, Room):
+            area.decorate(the_map, forced_object=(obj_type, (x, y)))
+            rooms_with_forced_objects.add(area.unique_id)
+
+    # Place objects without specific locations in random available rooms.
+    available_rooms = [room for room in the_map.rooms if room.unique_id not in rooms_with_forced_objects]
+    random.shuffle(available_rooms)
+
+    for obj_type, _, _ in forced_objects_no_loc:
+        if available_rooms:
+            room = available_rooms.pop()
+            room.decorate(the_map, forced_object=(obj_type, None))
+            rooms_with_forced_objects.add(room.unique_id)
+        else:
+            print(f"Warning: No available rooms to place object of type {obj_type}.")
+
+    # Decorate the remaining rooms randomly.
+    for room in the_map.rooms:
+        if room.unique_id not in rooms_with_forced_objects:
+            room.decorate(the_map)
+
+class Room(Area):
     """
     Represents a room on the map, a collection of blocks forming a distinct area.
 
@@ -29,19 +64,7 @@ class Room:
         :param blocks: A list of Block objects that make up the room's area.
         :param color: The color to use when drawing this room on the PDF map.
         """
-        self.identifier = identifier
-        self.unique_id = uuid.uuid4()
-        self.blocks = blocks if blocks is not None else []
-        self.color = color
-        self.contents = []  # A list of all content objects (items, encounters, etc.) within the room.
-
-    def rename(self, new_identifier):
-        """
-        Updates the identifier of the room.
-
-        :param new_identifier: The new string identifier for the room.
-        """
-        self.identifier = new_identifier
+        super().__init__(identifier, blocks, color)
 
     def get_relative_position(self, obj_location, center):
         """
@@ -53,34 +76,10 @@ class Room:
         :param center: A tuple (x, y) representing the center of the room.
         :return: A string describing the object's relative position.
         """
-        dx = obj_location.x - center[0]
-        dy = obj_location.y - center[1]
-
-        if abs(dx) < 2 and abs(dy) < 2:
+        direction = get_relative_direction_from_center([obj_location], center)
+        if direction == "central":
             return "in the center of the room"
-        
-        # Determine position based on which cardinal direction is dominant
-        if dy > abs(dx):
-            return "in the northern part of the room"
-        elif dy < -abs(dx):
-            return "in the southern part of the room"
-        elif dx > abs(dy):
-            return "in the eastern part of the room"
-        else: # dx < -abs(dy)
-            return "in the western part of the room"
-
-    def count_passages(self, map_instance):
-        """
-        Counts how many passages (e.g., doors, archways) are connected to this room.
-
-        :param map_instance: The main map object to access the list of all passages.
-        :return: The total number of passages connected to this room.
-        """
-        passage_count = 0
-        for passage in map_instance.passages:
-            if passage.side1.area_uid == self.unique_id or passage.side2.area_uid == self.unique_id:
-                passage_count += 1
-        return passage_count
+        return f"in the {direction} part of the room"
 
     def _create_item(self, block):
         """Factory method to create a random item in a given block."""
